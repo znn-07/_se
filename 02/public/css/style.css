@@ -1,0 +1,309 @@
+:root {
+  --bg: #f2f4f8;
+  --panel: #ffffff;
+  --ink: #1c2333;
+  --muted: #6b7280;
+  --line: #e3e7ef;
+  --primary: #2547a0;
+  --primary-dark: #1c3a85;
+  --accent: #c96a1e;
+  --ok: #178a4c;
+  --warn: #b96b12;
+  --danger: #cf3f3f;
+  --shadow: 0 1px 3px rgba(20, 30, 60, .10), 0 4px 16px rgba(20, 30, 60, .08);
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+}
+
+/* ---------- 登入畫面 ---------- */
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, #dbe6ff 0%, transparent 60%),
+    radial-gradient(900px 400px at -10% 110%, #ffe8d1 0%, transparent 55%),
+    var(--bg);
+  padding: 24px;
+}
+
+.login-card {
+  background: var(--panel);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 36px 40px 28px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.login-badge { font-size: 44px; line-height: 1; }
+
+.login-card h1 { margin: 10px 0 4px; font-size: 26px; letter-spacing: .5px; }
+
+.login-sub { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 22px; }
+
+.field { display: block; text-align: left; margin-bottom: 14px; }
+
+.field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+
+.field input, .field select, .field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 15px;
+  background: #fbfcfe;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+  border-color: var(--primary);
+  background: #fff;
+}
+
+.error-msg {
+  color: var(--danger);
+  font-size: 13px;
+  text-align: left;
+  margin: 0 0 10px;
+}
+
+.login-hint {
+  margin-top: 18px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.9;
+  border-top: 1px dashed var(--line);
+  padding-top: 14px;
+}
+
+.login-hint b { color: var(--ink); }
+
+code { background: #eef1f7; padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+
+/* ---------- 主介面 ---------- */
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.topbar {
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  height: 58px;
+  box-shadow: 0 2px 8px rgba(15, 30, 80, .18);
+}
+
+.brand { font-size: 18px; font-weight: 700; letter-spacing: .3px; }
+
+.semester {
+  font-size: 12px;
+  font-weight: 400;
+  background: rgba(255, 255, 255, .16);
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+.user-box { display: flex; align-items: center; gap: 10px; color: #fff; font-size: 14px; }
+
+.role-badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .18);
+}
+
+.role-badge.admin { background: #f3c86b; color: #4a3200; }
+.role-badge.teacher { background: #9fd4b2; color: #0b3d20; }
+.role-badge.student { background: #b9c8f0; color: #20305f; }
+
+.layout { display: flex; flex: 1; }
+
+.sidebar {
+  width: 210px;
+  background: #fff;
+  border-right: 1px solid var(--line);
+  padding: 16px 10px;
+}
+
+.sidebar a {
+  display: block;
+  padding: 10px 14px;
+  margin-bottom: 4px;
+  border-radius: 9px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 14.5px;
+}
+
+.sidebar a:hover { background: #eef2fb; }
+
+.sidebar a.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+.content { flex: 1; padding: 24px 30px; max-width: 1080px; }
+
+.page-title { margin: 0 0 4px; font-size: 22px; }
+
+.page-desc { margin: 0 0 20px; color: var(--muted); font-size: 13.5px; }
+
+/* ---------- 卡片 / 表格 ---------- */
+.card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+
+.toolbar .tbar-title { font-size: 16px; font-weight: 700; }
+
+table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+.tbl th, .tbl td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+
+.tbl th { color: var(--muted); font-weight: 600; font-size: 13px; background: #f8f9fc; }
+
+.tbl tr:hover td { background: #fafbfe; }
+
+.tbl .num { text-align: right; }
+
+.empty { color: var(--muted); text-align: center; padding: 26px 0; }
+
+/* ---------- 按鈕 ---------- */
+.btn {
+  border: 1px solid transparent;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter .12s ease;
+}
+
+.btn:hover { filter: brightness(1.06); }
+
+.btn-primary { background: var(--primary); color: #fff; }
+
+.btn-ghost { background: #fff; border-color: var(--line); color: var(--ink); }
+
+.btn-danger { background: #fee8e8; color: var(--danger); }
+
+.btn-ok { background: var(--ok); color: #fff; }
+
+.btn-sm { padding: 4px 10px; font-size: 13px; border-radius: 7px; }
+
+.btn-block { width: 100%; margin-top: 6px; }
+
+/* ---------- 徽章 ---------- */
+.badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.badge.blue { background: #e4ecff; color: #2547a0; }
+.badge.green { background: #e1f5e9; color: var(--ok); }
+.badge.orange { background: #fdeee0; color: var(--warn); }
+.badge.red { background: #fde3e3; color: var(--danger); }
+.badge.gray { background: #eef0f4; color: var(--muted); }
+
+/* ---------- 摘要卡 ---------- */
+.summary-row { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+
+.summary-item {
+  flex: 1;
+  min-width: 150px;
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+
+.summary-item .k { color: var(--muted); font-size: 12.5px; }
+
+.summary-item .v { font-size: 24px; font-weight: 700; margin-top: 4px; }
+
+/* ---------- 彈窗 ---------- */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  display: none;
+  background: rgba(15, 25, 50, .45);
+  place-items: center;
+  z-index: 50;
+}
+
+/* hidden 屬性必須蓋過 display:grid，否則遮罩會永遠覆蓋整頁、攔截所有點擊 */
+.modal-mask:not([hidden]) {
+  display: grid;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 22px 26px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.modal h3 { margin: 0 0 16px; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.form-grid { display: grid; gap: 12px; }
+
+.form-grid.two { grid-template-columns: 1fr 1fr; }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-size: 14px;
+  z-index: 100;
+  box-shadow: var(--shadow);
+  opacity: .96;
+}
+
+.toast.err { background: var(--danger); }
+.toast.ok { background: var(--ok); }
+
+/* ---------- 成績輸入 ---------- */
+.score-input { width: 84px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; text-align: right; }
+
+.grade-chip { font-weight: 700; color: var(--primary); }
+
+.link-btn { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 13.5px; padding: 0; }
+
+.link-btn:hover { text-decoration: underline; }
+
+.small-note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }

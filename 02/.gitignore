@@ -1,0 +1,11 @@
+# 執行時期產生的資料（首次啟動時自動建立）
+/data/
+
+# 測試與執行記錄
+/smoke.log
+/srv.out.log
+/srv.err.log
+/srv.pid
+
+# 瀏覽器 UI 測試截圖
+/test/screenshots/
