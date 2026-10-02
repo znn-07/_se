@@ -1,7 +1,7 @@
 # Commit連結
-1. 母專案 -- https://github.com/se-test-10/git-examples  
-    * 分支 -- https://github.com/se-test-10/git-examples/tree/developGitBranch  
-2. 子專案 -- https://github.com/znn-07/git-examples 
+1. 母專案 -- https://github.com/se-test-10/git-examples/commits/main/ 
+    * 分支 -- https://github.com/se-test-10/git-examples/commits/developGitBranch/  
+2. 子專案 -- https://github.com/znn-07/git-examples/commits/main/
 
 # Git 分支建立與合併
 
