@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker 微服務系統與知識儀表板</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .wrapper {
+            max-width: 900px;
+            width: 100%;
+        }
+        .container {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+            margin-bottom: 24px;
+        }
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            text-align: center;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1rem;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .status-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+        }
+        .status-card:hover {
+            border-color: rgba(56, 189, 248, 0.5);
+            transform: translateY(-2px);
+        }
+        .status-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #e2e8f0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        .badge.pending {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+        .badge.ok {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .badge.fail {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .status-detail {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            word-break: break-all;
+        }
+        .status-detail code {
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.1);
+            padding: 1px 6px;
+            border-radius: 4px;
+        }
+        .section-title {
+            font-size: 1.3rem;
+            color: #38bdf8;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+        .knowledge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .knowledge-item {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .knowledge-item h3 {
+            font-size: 1.05rem;
+            color: #818cf8;
+            margin-bottom: 8px;
+        }
+        .knowledge-item p {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+        .knowledge-item code {
+            color: #38bdf8;
+        }
+        .refresh-btn {
+            margin-top: 16px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .refresh-btn:hover {
+            background: rgba(56, 189, 248, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <h1>🚀 Docker 微服務系統儀表板</h1>
+            <p class="subtitle">整合 Nginx、Node.js 與 PostgreSQL 的全端架構展示</p>
+
+            <!-- 即時連線狀態 -->
+            <div class="status-card">
+                <div class="status-title">🔌 系統即時連線狀態</div>
+                <div id="api-status">
+                    <span class="badge pending">連線中...</span>
+                    <p class="status-detail">正在向後端伺服器請求資料</p>
+                </div>
+                <button class="refresh-btn" id="refresh">🔄 重新檢測</button>
+            </div>
+
+            <!-- 知識與架構說明 -->
+            <h2 class="section-title">📚 Docker 與微服務核心知識</h2>
+            <div class="knowledge-grid">
+                <div class="knowledge-item">
+                    <h3>1. Nginx 網頁與反向代理</h3>
+                    <p>擔任前端靜態網頁伺服器，並透過 Reverse Proxy 將 <code>/api</code> 請求安全轉發至後端容器，解決跨域並隱藏埠口。</p>
+                </div>
+                <div class="knowledge-item">
+                    <h3>2. Node.js 開發環境</h3>
+                    <p>使用 Express 框架建立 API 伺服器，透過 <code>pg</code> 套件連接資料庫，處理商業邏輯與 JSON 資料交換。</p>
+                </div>
+                <div class="knowledge-item">
+                    <h3>3. PostgreSQL 資料庫</h3>
+                    <p>提供關聯式資料儲存，並結合 Docker Named Volume 達成資料持久化，確保容器重啟後資料不遺失。</p>
+                </div>
+                <div class="knowledge-item">
+                    <h3>4. 容器健康檢查</h3>
+                    <p>透過 Docker <code>healthcheck</code> 與 <code>depends_on</code> 條件，確保後端在資料庫就緒後才啟動。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statusBox = document.getElementById('api-status');
+        const refreshBtn = document.getElementById('refresh');
+
+        async function checkStatus() {
+            statusBox.innerHTML =
+                '<span class="badge pending">連線中...</span>' +
+                '<p class="status-detail">正在向後端伺服器請求資料</p>';
+
+            try {
+                const res = await fetch('/api/status', { cache: 'no-store' });
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status);
+                }
+                const data = await res.json();
+                statusBox.innerHTML =
+                    '<span class="badge ok">● 運作正常</span>' +
+                    '<p class="status-detail">' +
+                    escapeHtml(data.message || '後端服務運作正常') +
+                    '<br>資料庫時間：<code>' + escapeHtml(String(data.db_time)) + '</code>' +
+                    '</p>';
+            } catch (err) {
+                statusBox.innerHTML =
+                    '<span class="badge fail">● 連線失敗</span>' +
+                    '<p class="status-detail">無法連線至後端服務：' +
+                    escapeHtml(err.message) + '</p>';
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        refreshBtn.addEventListener('click', checkStatus);
+        checkStatus();
+    </script>
+</body>
+</html>
