@@ -1,0 +1,11 @@
+node_modules/
+server/target/
+server/data/
+.e2e/
+test-results/
+playwright-report/
+blob-report/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store

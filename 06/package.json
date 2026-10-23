@@ -1,0 +1,21 @@
+{
+  "name": "fold-taskboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FOLD — a Kanban task board built with Rust, Axum, SQLite and Playwright",
+  "scripts": {
+    "start": "cargo run --manifest-path server/Cargo.toml",
+    "dev": "cargo run --manifest-path server/Cargo.toml",
+    "test": "npm run test:client && npm run test:server && npm run test:e2e",
+    "test:client": "node --test tests/task-logic.test.js",
+    "test:server": "cargo test --manifest-path server/Cargo.toml",
+    "test:unit": "cargo test --manifest-path server/Cargo.toml --lib",
+    "test:api": "cargo test --manifest-path server/Cargo.toml --test api_test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
