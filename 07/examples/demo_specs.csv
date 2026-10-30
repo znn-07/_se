@@ -1,0 +1,7 @@
+﻿id,name,target,tolerance,unit,aliases,cad_handle,note
+S001,寬度,150.5,0.05,mm,"width,W,總寬","","板件總寬"
+S002,高度,90.0,0.05,mm,"height,H,總高","","板件總高"
+S003,厚度,4.0,0.05,mm,"thickness,T,板厚","","側視圖板厚；圖面文字疑似被覆寫"
+S004,孔徑,12.5,0.02,mm,"hole_diameter,DIA,孔徑,直徑","","四孔孔徑"
+S005,孔距,90.0,0.10,mm,"pitch,P,孔距,中心距","","左右孔中心距"
+S006,倒角角度,45.0,0.5,deg,"angle,倒角,chamfer","","未標註時應警示"
