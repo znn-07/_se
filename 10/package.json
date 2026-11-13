@@ -1,0 +1,30 @@
+{
+  "name": "digital-conversion",
+  "version": "1.0.0",
+  "description": "A lightweight collection of string and number utilities: reverse, palindrome check, capitalize, thousands separator, random integer and clamp.",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "string",
+    "number",
+    "utilities",
+    "utils",
+    "palindrome",
+    "format",
+    "random",
+    "clamp"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
