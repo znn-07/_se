@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作業檔案 · 現代軟體工程 115-1 | 劉甄娜 111410510</title>
+<meta name="description" content="現代軟體工程 115 學年上學期作業檔案：curl、校務系統、Git Flow、Docker、網站測試、ALU-CHECK、Cloudflare 與 npm 套件的完整整理。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+<div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+<header class="topbar">
+  <a class="brand" href="#top">
+    <span class="brand-mark">SE</span>
+    <span class="brand-text"><strong>作品檔案</strong><small>ASSIGNMENT DOSSIER · 115-1</small></span>
+  </a>
+  <nav class="quicknav" aria-label="週次導覽">
+    <a href="#overview">總覽</a>
+    <a href="#register">檢驗表</a>
+    <a href="#week-01">01</a>
+    <a href="#week-02">02</a>
+    <a href="#week-03">03</a>
+    <a href="#week-04">04</a>
+    <a href="#week-05">05</a>
+    <a href="#week-06">06</a>
+    <a href="#week-07">07</a>
+    <a href="#week-09">09</a>
+    <a href="#week-10">10</a>
+    <a href="#midterm">期中</a>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="kicker"><span class="kicker-line"></span> 金門大學資訊工程系 · 現代軟體工程 · 115 學年上學期</p>
+      <h1>作業<span class="title-accent">檔案</span></h1>
+      <p class="hero-en">THE ASSIGNMENT DOSSIER</p>
+      <p class="hero-desc">從一條 HTTP 請求開始，走到容器、資料庫、Rust 看板、CAD 視覺比對與雲端部署。以下是整學期作業的結構、技術選擇與驗證方式。</p>
+      <div class="hero-meta">
+        <div><small>學生</small><strong>劉甄娜</strong></div>
+        <div><small>學號</small><strong>111410510</strong></div>
+        <div><small>教師</small><strong>陳鍾誠</strong></div>
+        <div><small>學期</small><strong>115 上</strong></div>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#overview">開始瀏覽檔案 <span aria-hidden="true">↓</span></a>
+        <a class="btn btn-ghost" href="../README.md" target="_blank" rel="noopener">原始 README ↗</a>
+      </div>
+    </div>
+    <div class="hero-seal" aria-hidden="true">
+      <div class="seal-ring"><span>11</span></div>
+      <p>COMPILED ARCHIVE</p>
+      <p class="seal-sub">10 ENTRIES · 8 LOCAL PROJECTS</p>
+    </div>
+    <div class="hero-index" aria-hidden="true">/11</div>
+  </section>
+
+  <section class="section" id="overview">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">01 / INDEX</p>
+        <h2>總覽</h2>
+      </div>
+      <p class="section-note">依週次排列。點選卡片可跳至該週的完整檔案。</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><strong>08</strong><span>本機專案資料夾</span></div>
+      <div class="stat"><strong>10</strong><span>操作流程截圖</span></div>
+      <div class="stat"><strong>26</strong><span>校務系統 API 端點</span></div>
+      <div class="stat"><strong>32</strong><span>FOLD 測試案例</span></div>
+    </div>
+
+    <div class="filters" role="group" aria-label="依類別篩選">
+      <button class="filter is-active" data-filter="all">全部</button>
+      <button class="filter" data-filter="api">後端與 API</button>
+      <button class="filter" data-filter="system">系統與維運</button>
+      <button class="filter" data-filter="quality">測試與品質</button>
+      <button class="filter" data-filter="tool">工具與套件</button>
+    </div>
+
+    <div class="card-grid" id="cardGrid">
+      <a class="card" href="#week-01" data-cat="api">
+        <div class="card-top"><span class="card-no">01</span><span class="card-type">後端與 API</span></div>
+        <h3>curl.js</h3>
+        <p>模仿 curl 的 HTTP 命令列用戶端，以 MVP 分層實作。</p>
+        <div class="card-tags"><span>Node.js</span><span>MVP</span><span>HTTP/HTTPS</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-02" data-cat="api">
+        <div class="card-top"><span class="card-no">02</span><span class="card-type">後端與 API</span></div>
+        <h3>大學校務系統</h3>
+        <p>三測試、選課規則、成績管理與單頁前端。</p>
+        <div class="card-tags"><span>Node.js</span><span>SPA</span><span>REST</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-03" data-cat="tool">
+        <div class="card-top"><span class="card-no">03</span><span class="card-type">工具與套件</span></div>
+        <h3>有價值專案</h3>
+        <p>每週檢驗表登錄的外部專案，連結至獨立 repository。</p>
+        <div class="card-tags"><span>外部專案</span><span>週次 03</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-04" data-cat="system">
+        <div class="card-top"><span class="card-no">04</span><span class="card-type">系統與維運</span></div>
+        <h3>Git Flow</h3>
+        <p>分支建立、提交、推送與合併的完整操作流程。</p>
+        <div class="card-tags"><span>Git</span><span>GitHub</span><span>Merge</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-05" data-cat="system">
+        <div class="card-top"><span class="card-no">05</span><span class="card-type">系統與維運</span></div>
+        <h3>Docker 微服務</h3>
+        <p>Nginx + Node.js + PostgreSQL 三層容器化架構。</p>
+        <div class="card-tags"><span>Docker</span><span>Nginx</span><span>PostgreSQL</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-06" data-cat="quality">
+        <div class="card-top"><span class="card-no">06</span><span class="card-type">測試與品質</span></div>
+        <h3>FOLD 任務看板</h3>
+        <p>Rust + Axum + SQLite，四層測試與 WebSocket 即時更新。</p>
+        <div class="card-tags"><span>Rust</span><span>WebSocket</span><span>Playwright</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-07" data-cat="quality">
+        <div class="card-top"><span class="card-no">07</span><span class="card-type">測試與品質</span></div>
+        <h3>ALU-CHECK</h3>
+        <p>DXF 圖面與客戶規格比對，結合 OpenCV 視覺檢查。</p>
+        <div class="card-tags"><span>Python</span><span>DXF</span><span>OpenCV</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-09" data-cat="api">
+        <div class="card-top"><span class="card-no">09</span><span class="card-type">後端與 API</span></div>
+        <h3>Field Notes</h3>
+        <p>紙張質感筆記網站，全端部署於 Cloudflare Workers + D1。</p>
+        <div class="card-tags"><span>React 19</span><span>TypeScript</span><span>D1</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card" href="#week-10" data-cat="tool">
+        <div class="card-top"><span class="card-no">10</span><span class="card-type">工具與套件</span></div>
+        <h3>digital-conversion</h3>
+        <p>零依賴字串與數字工具組，公開發布至 npm。</p>
+        <div class="card-tags"><span>npm 公開套件</span><span>CommonJS</span><span>ESM</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+      <a class="card card-midterm" href="#midterm" data-cat="tool">
+        <div class="card-top"><span class="card-no">09+</span><span class="card-type">工具與套件</span></div>
+        <h3>每週檢驗表</h3>
+        <p>繳交狀態與各週作業的原始連結對照。</p>
+        <div class="card-tags"><span>midterm</span><span>README</span></div>
+        <span class="card-go">查看檔案 ↗</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section section-register" id="register">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">02 / REGISTER</p>
+        <h2>每週檢驗表</h2>
+      </div>
+      <p class="section-note">來源：<code>midterm/README.md</code>。第 10 週套件為本地資料夾且已公開發布至 npm，未列於原表。</p>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>週次</th><th>習題內容</th><th>繳交</th><th>補交證明</th><th>作業連結</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>curl</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-01">01 · curl.js</a></td></tr>
+          <tr><td>2</td><td>校務系統</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-02">02 · 校務系統</a></td></tr>
+          <tr><td>3</td><td>有價值專案</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-03">03 · 外部專案</a></td></tr>
+          <tr><td>4</td><td>git flow</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-04">04 · Git Flow</a></td></tr>
+          <tr><td>6</td><td>docker</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-05">05 · Docker</a></td></tr>
+          <tr><td>7</td><td>網站測試</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-06">06 · FOLD</a></td></tr>
+          <tr><td>8</td><td>有價值專案</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-07">07 · ALU-CHECK</a></td></tr>
+          <tr><td>9</td><td>cloudflare 網站專案</td><td><span class="yes">是</span></td><td>—</td><td><a href="#week-09">09 · Field Notes</a></td></tr>
+          <tr class="table-extra"><td>10</td><td>digital-conversion</td><td><span class="tag-inline">npm 公開</span></td><td>—</td><td><a href="#week-10">10 · 公開套件</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section section-archive" id="archive">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">03 / DOSSIERS</p>
+        <h2>逐週檔案</h2>
+      </div>
+      <p class="section-note">每份檔案包含功能、架構、檔案結構、執行方式與驗證結果。</p>
+    </div>
+
+    <article class="entry reveal" id="week-01" data-cat="api">
+      <header class="entry-head">
+        <div class="week-mark"><span>01</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">CLI / HTTP · curl.js</p><h3>模仿 curl 的 HTTP 命令列用戶端</h3>
+          <div class="chips"><span>Node.js</span><span>MVP</span><span>HTTP / HTTPS</span><span>零依賴</span></div>
+        </div>
+        <a class="entry-link" href="../01/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">以 Node.js 內建 <code>http</code> / <code>https</code> 模組實作的 curl 模擬器。入口只負責接線，Presenter 解析參數與流程，View 管理輸出，Model 處理網路傳輸；所有角色單向依賴，可各自替換與測試。</p>
+        <div class="split">
+          <section class="panel"><h4>支援功能</h4>
+            <ul class="detail-list">
+              <li><strong>方法與資料</strong>：<code>-X</code> 指定方法、<code>-d</code> 可重複並以 <code>&amp;</code> 串接，有資料時自動推斷 POST。</li>
+              <li><strong>標頭與認證</strong>：<code>-H</code> 自訂標頭、<code>-u</code> 轉為 Basic Base64 授權。</li>
+              <li><strong>輸出控制</strong>：<code>-o</code> 存檔、<code>-i</code> 含標頭、<code>-I</code> 只取標頭、<code>-f</code> 網路錯誤狀態。</li>
+              <li><strong>重新導向</strong>：<code>-L</code> 自動跟隨 301/302/303/307/308，最多 50 次，以 <code>new URL(location, base)</code> 解析相對路徑。</li>
+              <li><strong>診訊分流</strong>：主體寫 stdout；<code>-v</code> 與錯誤寫 stderr，可用 <code>2&gt;/dev/null</code> 過濾。</li>
+              <li><strong>逾時</strong>：<code>--connect-timeout</code> / <code>--max-time</code>，預設 30 秒。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>架構與資料流</h4>
+<pre>curl.js ─▶ Presenter ─▶ Model ─▶ node:http / https
+                │
+                └──────▶ View ─▶ stdout / stderr / fs
+
+parseArgs → buildRequest(spec) → model.fetch(spec)
+          → -f / -i / -o / writeBody → exitCode 0|1|2</pre>
+            <p class="panel-note">退出碼：<code>0</code> 成功、<code>1</code> 語法或連線錯誤、<code>2</code> 未提供 URL。</p>
+          </section>
+        </div>
+        <div class="split">
+          <section class="panel"><h4>檔案地圖</h4>
+<pre class="tree">01/
+├── curl.js          入口：呼叫 Presenter
+├── srv/srv.js       本地測試伺服器 :8123
+└── src/
+    ├── presenter.js 參數解析 / 流程 / exit code
+    ├── view.js      所有輸出與寫檔
+    └── model.js     HTTP 傳輸 / 導向 / 逾時</pre>
+          </section>
+          <section class="panel"><h4>執行與驗證</h4>
+<pre class="cmd">node curl.js https://example.com
+node curl.js -o page.html -L https://example.com
+node curl.js -d "name=test" -H "Accept: application/json" https://httpbin.org/post
+node srv/srv.js
+node curl.js -L -u user:pass http://127.0.0.1:8123/redirect</pre>
+            <p class="panel-note">測試伺服器提供 <code>/auth</code>、<code>/redirect</code>、<code>/echo</code> 三個情境，其餘路徑回傳 hello。</p>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../01/README.md" target="_blank" rel="noopener">README.md ↗</a><a href="https://github.com/znn-07/_se/tree/main/01" target="_blank" rel="noopener">GitHub ↗</a><span>純標準函式庫 · 不需 npm install</span></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-02" data-cat="api">
+      <header class="entry-head">
+        <div class="week-mark"><span>02</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Web / API · 大學校務系統</p><h3>三角色校務行政資訊入口</h3>
+          <div class="chips"><span>Node.js</span><span>SPA</span><span>JSON DB</span><span>SHA-256 + salt</span></div>
+        </div>
+        <a class="entry-link" href="../02/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">涵蓋教務處、教師、學生三種角色的校務系統：登入與權限、系所／學生／教師／課程 CRUD、線上選課、成績登錄與成績單。後端以 MVP 分層，前端為原生 JavaScript 單頁應用。</p>
+        <div class="split">
+          <section class="panel"><h4>角色功能</h4>
+            <div class="table-wrap inner"><table class="mini-table"><thead><tr><th>功能</th><th>教務處</th><th>教師</th><th>學生</th></tr></thead><tbody>
+              <tr><td>課程清單</td><td>✔</td><td>✔</td><td>✔</td></tr>
+              <tr><td>系所 / 學生 / 教師 / 課程管理</td><td>✔</td><td>—</td><td>—</td></tr>
+              <tr><td>開課與修課名單、成績登錄</td><td>—</td><td>✔</td><td>—</td></tr>
+              <tr><td>加選 / 退選、成績單與 GPA</td><td>—</td><td>—</td><td>✔</td></tr>
+            </tbody></table></div>
+            <p class="panel-note">示範帳號：<code>admin</code> / <code>T001</code> / <code>S001</code>，密碼皆為 <code>1111</code>；雜湊存放，Token 由 <code>crypto.randomBytes</code> 產生。</p>
+          </section>
+          <section class="panel"><h4>業務規則</h4>
+            <ol class="detail-list numbered">
+              <li><strong>加選檢查順序</strong>：課程存在 → 未重複 → 未額滿 → 不與已選時段衝堂；任一失敗回 409 並說明原因。</li>
+              <li><strong>排課格式</strong>：<code>["1-1","1-2"]</code> 代表星期一第 1、2 節，作為重疊比對依據。</li>
+              <li><strong>成績</strong>：教師僅能登錄自己的課程（403），分數限 0–100，回傳 A+ / A / … / F 等第。</li>
+              <li><strong>權限</strong>：API 標註 public / any / admin / teacher / student；未登入 401、角色不符 403。</li>
+            </ol>
+          </section>
+        </div>
+        <section class="panel wide"><h4>REST API（26 個端點）</h4>
+          <div class="table-wrap inner"><table class="mini-table"><thead><tr><th>群組</th><th>方法與路徑</th><th>說明</th></tr></thead><tbody>
+            <tr><td>會話</td><td>POST /api/login · GET /api/me · POST /api/logout</td><td>登入取得 token、目前使用者、登出</td></tr>
+            <tr><td>系所</td><td>GET/POST /api/departments · PUT/DELETE /api/departments/:code</td><td>清單與 CRUD，刪除時檢查參照</td></tr>
+            <tr><td>學生</td><td>GET/POST /api/students · PUT/DELETE /api/students/:id</td><td>CRUD，刪除連帶清選課</td></tr>
+            <tr><td>教師</td><td>GET/POST /api/teachers · PUT/DELETE /api/teachers/:id</td><td>CRUD，仍有開課者不可刪</td></tr>
+            <tr><td>課程</td><td>GET/POST /api/courses · PUT/DELETE /api/courses/:id</td><td>課程與排課管理</td></tr>
+            <tr><td>教師端</td><td>GET /api/teacher/courses · GET .../roster · PUT .../scores</td><td>開課清單、修課名單、登錄成績</td></tr>
+            <tr><td>學生端</td><td>POST /api/student/enroll · DELETE .../enroll/:courseId · GET .../enrolled · GET .../grades</td><td>選課與成績單</td></tr>
+          </tbody></table></div>
+        </section>
+        <div class="split">
+          <section class="panel"><h4>前端與測試</h4>
+            <ul class="detail-list">
+              <li>Hash 路由切換角色選單；通用「表格 + 表單彈窗」CRUD 元件。</li>
+              <li>課程表即時標示已選／可選／滿班／衝堂；成績單含等第、學分、加權平均與 4.0 GPA。</li>
+              <li>所有渲染資料經 <code>esc()</code> 跳脫，防 XSS。</li>
+              <li><code>node --test test/e2e.js</code>：13 個真實 HTTP 案例，使用隔離 <code>DATA_DIR</code>。</li>
+              <li><code>python test/ui_e2e.py</code>：7 個瀏覽器案例，實際抓出 4 個前端 Bug。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>檔案地圖與啟動</h4>
+<pre class="tree">02/
+├── server.js          HTTP 伺服器入口
+├── src/{app,model,view}.js   presenter / model / view
+├── public/{index.html,css,js} 單頁前端
+└── test/{e2e.js,ui_e2e.py,screenshots/}</pre>
+<pre class="cmd">node server.js
+node --test test/e2e.js
+python test/ui_e2e.py --headed</pre>
+          </section>
+        </div>
+        <section class="panel wide gallery-panel"><h4>操作流程截圖</h4>
+          <div class="gallery" id="gallery">
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/01_login_screen.png"><img src="../02/test/screenshots/01_login_screen.png" alt="登入畫面" loading="lazy"></button><figcaption>01 · 登入畫面</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/02_enroll_courses.png"><img src="../02/test/screenshots/02_enroll_courses.png" alt="選課畫面" loading="lazy"></button><figcaption>02 · 課程清單</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/03_enroll_toast.png"><img src="../02/test/screenshots/03_enroll_toast.png" alt="加選成功提示" loading="lazy"></button><figcaption>03 · 加選提示</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/04_enrolled_courses.png"><img src="../02/test/screenshots/04_enrolled_courses.png" alt="已選課程" loading="lazy"></button><figcaption>04 · 已選課程</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/05_grades.png"><img src="../02/test/screenshots/05_grades.png" alt="成績單" loading="lazy"></button><figcaption>05 · 成績單</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/06_teacher_score_saved.png"><img src="../02/test/screenshots/06_teacher_score_saved.png" alt="教師登錄成績" loading="lazy"></button><figcaption>06 · 成績登錄</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/07_admin_students.png"><img src="../02/test/screenshots/07_admin_students.png" alt="學生管理" loading="lazy"></button><figcaption>07 · 學生管理</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/08_admin_student_form.png"><img src="../02/test/screenshots/08_admin_student_form.png" alt="學生表單" loading="lazy"></button><figcaption>08 · 學生表單</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/09_admin_student_deleted.png"><img src="../02/test/screenshots/09_admin_student_deleted.png" alt="刪除學生" loading="lazy"></button><figcaption>09 · 刪除學生</figcaption></figure>
+            <figure><button type="button" class="shot" data-full="../02/test/screenshots/10_logged_out.png"><img src="../02/test/screenshots/10_logged_out.png" alt="登出畫面" loading="lazy"></button><figcaption>10 · 登出</figcaption></figure>
+          </div>
+        </section>
+        <footer class="entry-foot"><a href="../02/README.md" target="_blank" rel="noopener">README.md ↗</a><a href="https://github.com/znn-07/_se/tree/main/02" target="_blank" rel="noopener">GitHub ↗</a><span>13 API E2E + 7 UI E2E</span></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-03" data-cat="tool">
+      <header class="entry-head">
+        <div class="week-mark"><span>03</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Self-selected · 有價值專案</p><h3>第 3 週自主專案</h3>
+          <div class="chips"><span>外部 repository</span><span>週次 03</span></div>
+        </div>
+        <a class="entry-link" href="https://github.com/znn-07/_10hw3/tree/main/03" target="_blank" rel="noopener">外部專案 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">本機 <code>_se</code> 資料夾未包含第 3 週的原始碼；依 <code>midterm/README.md</code> 的登錄，此週為「有價值專案」，內容存放在獨立的 <code>_10hw3/03</code> repository，且已按時繳交。</p>
+        <div class="split">
+          <section class="panel"><h4>登錄資訊</h4>
+            <ul class="detail-list">
+              <li>週次：3 · 習題：有價值專案 · 繳交：是。</li>
+              <li>作業連結：<a href="https://github.com/znn-07/_10hw3/tree/main/03" target="_blank" rel="noopener">github.com/znn-07/_10hw3/tree/main/03 ↗</a>。</li>
+              <li>此條目保留在檔案中，讓整學期週次與檢驗表保持連續。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>與其他週的關係</h4>
+            <p class="panel-note">第 3、8 週同為「有價值專案」類型：第 8 週的 ALU-CHECK 專案（<a href="#week-07">07</a>）保留於本機資料夾，並附上完整 README、架構文件、範例資料與測試。</p>
+            <a class="inline-cta" href="#week-07">前往第 8 週檔案 →</a>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../midterm/README.md" target="_blank" rel="noopener">檢驗表來源 ↗</a><span>無本地原始碼</span></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-04" data-cat="system">
+      <header class="entry-head">
+        <div class="week-mark"><span>04</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Version control · Git Flow</p><h3>Git 分支建立與合併</h3>
+          <div class="chips"><span>Git</span><span>GitHub</span><span>Branch / Merge</span></div>
+        </div>
+        <a class="entry-link" href="../04/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">以實際操作記錄示範「功能分支 → commit → push → 回主分支 → merge → push」的流程，並附上母專案、分支與子專案的 Commit 連結，以及兩個實作時常犯的指令失誤。</p>
+        <div class="split">
+          <section class="panel"><h4>操作六步驟</h4>
+<pre class="cmd">git remote -v
+git checkout -b developGitBranch
+git branch
+git add *.md
+git commit -m "add gitBranch.md"
+git push origin developGitBranch
+git checkout main
+git merge developGitBranch
+git push origin main</pre>
+          </section>
+          <section class="panel"><h4>常見失誤提醒</h4>
+            <ul class="detail-list">
+              <li>把 <code>origin</code> 打成 <code>orgin</code> 會出現 <code>fatal: 'orgin' does not appear to be a git repository</code>。</li>
+              <li><code>git add .*md</code> 無法正確匹配檔案，應使用 <code>git add *.md</code>。</li>
+              <li>目前分支可用 <code>git branch</code> 確認，<code>*</code> 標記即為工作分支。</li>
+            </ul>
+            <p class="panel-note">Commit 連結：母專案 main / developGitBranch 分支、子專案 main 皆記錄於原文件。</p>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../04/10gitbranch.md" target="_blank" rel="noopener">10gitbranch.md ↗</a><a href="https://github.com/znn-07/_se/tree/main/04" target="_blank" rel="noopener">GitHub ↗</a></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-05" data-cat="system">
+      <header class="entry-head">
+        <div class="week-mark"><span>05</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Container · Docker Microservice</p><h3>三層式容器微服務系統</h3>
+          <div class="chips"><span>Docker Compose</span><span>Nginx</span><span>Node.js</span><span>PostgreSQL</span></div>
+        </div>
+        <a class="entry-link" href="../05/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">以 Docker Compose 編排 Nginx、Express API 與 PostgreSQL 三個容器；兩層網路隔離、健康檢查控制啟動順序、Named Volume 保存資料，並以多階段建置與非 root 執行強化安全性。</p>
+        <div class="split">
+          <section class="panel"><h4>服務與網路</h4>
+            <div class="table-wrap inner"><table class="mini-table"><thead><tr><th>服務</th><th>映像</th><th>對外</th><th>職責</th></tr></thead><tbody>
+              <tr><td>web</td><td>nginx:1.27-alpine</td><td>8080 → 80</td><td>靜態頁 + <code>/api</code> 反向代理</td></tr>
+              <tr><td>backend</td><td>./backend build</td><td>無</td><td>Express API，連線 <code>db:5432</code></td></tr>
+              <tr><td>db</td><td>postgres:16-alpine</td><td>無</td><td>資料持久化於 <code>pgdata</code></td></tr>
+            </tbody></table></div>
+            <p class="panel-note"><code>frontend</code> 網路連 web / backend；<code>backend</code> 網路為 internal，db 僅掛載於此，外部無法直接連線。</p>
+          </section>
+          <section class="panel"><h4>請求路徑</h4>
+<pre>瀏覽器 :8080
+   │
+   ▼  web (Nginx)
+   │  /api/* → proxy_pass http://backend:3000
+   ▼  backend (Express)
+   │  pg(host: db, port: 5432)
+   ▼  db (PostgreSQL + pgdata)</pre>
+            <p class="panel-note">API：<code>GET /api/health</code>（Liveness）、<code>GET /api/status</code>（Readiness，查 DB）、<code>GET /healthz</code>（Nginx）。</p>
+          </section>
+        </div>
+        <div class="split">
+          <section class="panel"><h4>設計重點</h4>
+            <ul class="detail-list">
+              <li><code>depends_on: condition: service_healthy</code> 等待 db / backend 就緒，避免連線競態。</li>
+              <li><code>npm ci</code> + lockfile 可重現建置；最終映像以內建 <code>node</code> 使用者執行。</li>
+              <li>監聽 SIGTERM / SIGINT，先停止收要求、關閉連線池再結束。</li>
+              <li>Nginx 傳遞 Host、X-Real-IP、X-Forwarded-*；啟用 Gzip 與日誌輪替。</li>
+              <li><code>pg.Pool</code> 設連線與閒置逾時，避免連線耗盡。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>執行與疑難排解</h4>
+<pre class="cmd">cp .env.example .env
+docker compose up -d --build
+docker compose ps
+curl http://localhost:8080/api/status
+docker compose logs -f backend
+docker compose down -v</pre>
+            <p class="panel-note">連接埠衝突可改 <code>WEB_PORT</code>；PostgreSQL 版本不相容時需清除舊 <code>pgdata</code> 或執行 <code>pg_dump</code> / <code>pg_upgrade</code>。</p>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../05/README.md" target="_blank" rel="noopener">README.md ↗</a><a href="https://github.com/znn-07/_se/tree/main/05" target="_blank" rel="noopener">GitHub ↗</a><span>web / backend / db</span></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-06" data-cat="quality">
+      <header class="entry-head">
+        <div class="week-mark"><span>06</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Testing · FOLD</p><h3>任務看板管理工具</h3>
+          <div class="chips"><span>Rust / Axum</span><span>SQLite</span><span>WebSocket</span><span>Playwright</span></div>
+        </div>
+        <a class="entry-link" href="../06/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">FOLD 是完全自製的 Kanban 網站：Rust + Axum 提供 API、SQLite 持久化、原生前端支援拖曳與搜尋，WebSocket 讓多名使用者的變更即時同步。重點是第四層測試策略，從驗證函式一路測到真實瀏覽器。</p>
+        <div class="split">
+          <section class="panel"><h4>功能</h4>
+            <ul class="detail-list">
+              <li>多看板、多欄位、任務 CRUD；標題、描述、優先級、到期日與標籤。</li>
+              <li>HTML5 拖曳：跨欄移動與同欄排序，移動後重排 <code>position</code> 避免空洞。</li>
+              <li>搜尋標題／描述／標籤、依標籤篩選、到期日與逾期提示。</li>
+              <li>WebSocket 廣播 <code>task.created</code> / updated / moved / deleted，前端自動重載看板。</li>
+              <li>首次啟動建立示範資料；響應式版面、鍵盤操作與 ARIA 標籤。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>四層測試（32 個案例）</h4>
+            <div class="table-wrap inner"><table class="mini-table"><thead><tr><th>層級</th><th>工具</th><th>數量</th><th>範圍</th></tr></thead><tbody>
+              <tr><td>Server 單元</td><td><code>cargo test --lib</code></td><td>14</td><td>驗證、標籤、排序、cascade</td></tr>
+              <tr><td>Client 單位</td><td><code>node:test</code></td><td>6</td><td>狀態切換、拖曳、到期日、篩選</td></tr>
+              <tr><td>Web API</td><td>Rust + <code>tower::ServiceExt</code></td><td>8</td><td>HTTP 狀態、JSON、WebSocket 事件</td></tr>
+              <tr><td>E2E</td><td>Playwright / Chromium</td><td>4</td><td>真實Server + 瀏覽器 persistent</td></tr>
+            </tbody></table></div>
+            <p class="panel-note">單元／API 用 in-memory SQLite，E2E 用獨立 <code>.e2e/taskboard.db</code> 並於啟動前重設。</p>
+          </section>
+        </div>
+        <div class="split">
+          <section class="panel"><h4>API 摘要</h4>
+<pre>GET    /api/health
+GET    /api/boards                 POST /api/boards
+GET    /api/boards/{id}            PATCH /api/boards/{id}
+DELETE /api/boards/{id}
+POST   /api/boards/{id}/columns    PATCH /api/columns/{id}
+DELETE /api/columns/{id}
+POST   /api/columns/{id}/tasks     PATCH /api/tasks/{id}
+DELETE /api/tasks/{id}             POST /api/tasks/{id}/move
+GET    /api/ws  → connected / task.* 事件</pre>
+          </section>
+          <section class="panel"><h4>檔案地圖與指令</h4>
+<pre class="tree">06/
+├── server/src/{api,db,error,lib,main,models,validation}.rs
+├── server/tests/api_test.rs
+├── web/{index.html,styles.css,app.js,task-logic.js}
+├── tests/task-logic.test.js
+└── e2e/board.spec.js</pre>
+<pre class="cmd">npm install && npx playwright install chromium
+npm start
+npm test              # 全部四層
+npm run test:client   # node:test
+npm run test:unit     # cargo test --lib
+npm run test:api      # Web API
+npm run test:e2e</pre>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../06/README.md" target="_blank" rel="noopener">README.md ↗</a><a href="https://github.com/znn-07/_se/tree/main/06" target="_blank" rel="noopener">GitHub ↗</a><span>http://127.0.0.1:3000</span></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-07" data-cat="quality">
+      <header class="entry-head">
+        <div class="week-mark"><span>07</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Domain project · ALU-CHECK</p><h3>鋁業 CAD 精密比對系統</h3>
+          <div class="chips"><span>Python</span><span>DXF</span><span>OpenCV</span><span>Streamlit</span></div>
+        </div>
+        <a class="entry-link" href="../07/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">針對鋁擠型、散熱片、板金與機構件，將 DXF 圖面量測與客戶規格逐項比對：尺寸公差、標註文字是否被覆寫，以及以 OpenCV 疊圖找出孔位偏移與輪廓變形。圖面與規格以本機運算為主。</p>
+        <div class="split">
+          <section class="panel"><h4>核心能力</h4>
+            <ul class="detail-list">
+              <li><strong>DXF 解析</strong>：DIMENSION / CIRCLE / ARC / LINE，mm / cm / m / inch 換算，SHA-256 + pickle 快取。</li>
+              <li><strong>規格匯入</strong>：CSV、TSV、XLSX、JSON、PDF、TXT、Markdown；中英文欄名別名對應。</li>
+              <li><strong>加權配對</strong>：名稱／別名、尺寸類型、數值、CAD Handle；全域貪婪確保一個量測只用一次。</li>
+              <li><strong>公差判定</strong>：<code>±0.05</code>、<code>+0.10/-0.05</code>、上下限與範圍。</li>
+              <li><strong>文字竄改檢查</strong>：幾何 3.80 mm 但文字覆寫為 <code>T=4.00</code> 時標記需人工複核。</li>
+              <li><strong>視覺比對</strong>：移除標註後正規化線稿，比較形狀、面積、質心與重疊率，輸出差異疊圖。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>資料流與模組</h4>
+<pre>DXF ─▶ cad_parser ─▶ CADDocument ─┐
+                                    ├─▶ matcher.compare_specs ─▶ MatchResult[]
+規格 ─▶ specs.load_specs ─▶ SpecItem[]┘          │
+                                        ├─▶ render ─▶ 標註圖
+                                        ├─▶ report ─▶ HTML/CSV/JSON
+                                        └─▶ vision.compare_images ◀─ 參考圖</pre>
+            <p class="panel-note">判定狀態：<code>pass</code> / <code>fail</code> / <code>missing</code> / <code>warning</code> / <code>invalid</code> / <code>error</code>；文字異常保守列為 warning，不直接推斷惡意竄改。</p>
+          </section>
+        </div>
+        <div class="split">
+          <section class="panel"><h4>示範與批次指令</h4>
+<pre class="cmd">streamlit run app.py
+python scripts\make_demo.py
+python scripts\batch_check.py examples --spec examples\demo_specs.csv --out reports --html
+python -m pytest -q</pre>
+            <p class="panel-note">示範含 <code>demo_actual.dxf</code>、<code>demo_ideal.dxf</code>、<code>demo_specs.csv</code> 與 <code>demo_reference.png</code>；批次輸出每張圖的 CSV / JSON / HTML 與 <code>batch_summary.csv</code>。</p>
+          </section>
+          <section class="panel"><h4>限制與檔案地圖</h4>
+<pre class="tree">07/
+├── app.py                 Streamlit 工作台
+├── alucheck/              parser / matcher / render /
+│                          report / specs / vision / ui_theme / utils
+├── examples/              示範 DXF、規格、參考圖
+├── scripts/               make_demo / batch_check
+├── tests/                 pytest
+└── docs/architecture.md   架構與設計取捨</pre>
+            <p class="panel-note">未處理：掃描 PDF OCR、圖塊內尺寸展開、GD&T 語意判定、3D 實體；視覺比對要求視角與比例大致一致。</p>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../07/README.md" target="_blank" rel="noopener">README.md ↗</a><a href="../07/docs/architecture.md" target="_blank" rel="noopener">架構文件 ↗</a><a href="https://github.com/znn-07/_se/tree/main/07" target="_blank" rel="noopener">GitHub ↗</a></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-09" data-cat="api">
+      <header class="entry-head">
+        <div class="week-mark"><span>09</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Cloud full-stack · Field Notes</p><h3>紙張質感的雲端筆記網站</h3>
+          <div class="chips"><span>React 19</span><span>Vite</span><span>TypeScript</span><span>Cloudflare D1</span></div>
+        </div>
+        <a class="entry-link" href="../09/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">全端部署在 Cloudflare Workers 的筆記應用：React + Vite + TypeScript 前端，Worker 提供 <code>/api/*</code> CRUD，D1（SQLite）存放 notes / tags / note_tags 三張表。介面以字型與紙張色票營造手感，無 UI 框架。</p>
+        <div class="split">
+          <section class="panel"><h4>功能</h4>
+            <ul class="detail-list">
+              <li>新增／編輯／刪除筆記，雙擊卡片即可編輯；6 種紙張顏色。</li>
+              <li>釘選、最多 8 個標籤、標題／內文／標籤即時搜尋與標籤篩選。</li>
+              <li>快捷鍵：<code>N</code> 新增、<code>/</code> 搜尋、<code>Cmd/Ctrl + Enter</code> 儲存、<code>Esc</code> 關閉。</li>
+              <li>響應式版面、載入骨架、錯誤重試、Toast；骨架與紙張傾角由自訂 CSS 完成。</li>
+              <li>字型 Fraunces / Newsreader / JetBrains Mono 以 Fontsource 自我託管。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>API 與資料</h4>
+<pre>GET    /api/health
+GET    /api/notes?q=&amp;tag=&amp;pinned=1     POST /api/notes
+GET    /api/notes/:id                PUT /api/notes/:id
+PATCH  /api/notes/:id  { pinned }    DELETE /api/notes/:id
+GET    /api/tags                     DELETE /api/tags/:name
+
+note = { id, title, body, color, pinned,
+         tags[], createdAt, updatedAt }</pre>
+            <p class="panel-note">Worker：<code>cloudnotes</code> · D1：<code>cloudnotes-db</code> · 上線網址見下方。</p>
+          </section>
+        </div>
+        <div class="split">
+          <section class="panel"><h4>本機與部署</h4>
+<pre class="cmd">npm install
+npm run db:migrate:local
+npm run dev            # http://localhost:5173
+npm run typecheck
+npm run cf:dry
+npx wrangler login
+npm run db:migrate:remote
+npm run deploy</pre>
+            <p class="panel-note"><code>@cloudflare/vite-plugin</code> 在本機 workerd 執行 Worker + D1，因此 <code>/api</code> 打到本機 SQLite。</p>
+          </section>
+          <section class="panel"><h4>檔案地圖</h4>
+<pre class="tree">09/
+├── migrations/0001_init.sql   schema + seed
+├── shared/types.ts            前後端共用型別
+├── worker/{index,api,db}.ts    Worker / 路由 / D1
+├── src/App.tsx                狀態、篩選、快捷鍵
+├── src/components/            NoteCard / NoteEditor
+├── src/styles.css             全部視覺樣式
+└── wrangler.jsonc             Worker / D1 / assets</pre>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../09/README.md" target="_blank" rel="noopener">README.md ↗</a><a href="https://github.com/znn-07/_se/tree/main/09" target="_blank" rel="noopener">GitHub ↗</a><a href="https://cloudnotes.fieldnotebook.workers.dev" target="_blank" rel="noopener">線上版本 ↗</a></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal" id="week-10" data-cat="tool">
+      <header class="entry-head">
+        <div class="week-mark"><span>10</span><small>WEEK</small></div>
+        <div class="entry-title"><p class="eyebrow">Public package · digital-conversion</p><h3>公開發布到 npm 的零依賴套件</h3>
+          <div class="chips"><span>npm 公開發布</span><span>CommonJS</span><span>ES Modules</span><span>ISC</span></div>
+        </div>
+        <a class="entry-link" href="../10/" target="_blank" rel="noopener">本機資料夾 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">本週作業是撰寫一個套件，並公開發布到公開套件登錄 <strong>npm</strong>，讓任何人都能以 <code>npm install digital-conversion</code> 安裝使用。套件收錄六個字串與數字工具函式，未壓縮約 4.4 kB、無執行期依賴；同時支援 CommonJS 與 ES Modules，並以 Node.js 內建 test runner 做完整參數驗證。Cloudflare 的部署成果屬於第 9 週 Field Notes，與本週的 npm 公開套件不同。</p>
+        <div class="split">
+          <section class="panel"><h4>API</h4>
+            <div class="table-wrap inner"><table class="mini-table"><thead><tr><th>函式</th><th>說明</th><th>範例</th></tr></thead><tbody>
+              <tr><td><code>reverseString</code></td><td>Unicode 安全反轉</td><td><code>'你好' → '好你'</code></td></tr>
+              <tr><td><code>isPalindrome</code></td><td>忽略大小寫、空白、標點</td><td><code>'A man, a plan…' → true</code></td></tr>
+              <tr><td><code>capitalizeWords</code></td><td>字首大寫、其餘小寫，保留空白</td><td><code>'hello world' → 'Hello World'</code></td></tr>
+              <tr><td><code>formatThousands</code></td><td>千分位，含負數與小數</td><td><code>1234567 → '1,234,567'</code></td></tr>
+              <tr><td><code>randomInt</code></td><td>含頭尾隨機整數</td><td><code>randomInt(1,6)</code></td></tr>
+              <tr><td><code>clamp</code></td><td>限制在最小值與最大值之間</td><td><code>clamp(42,0,10) → 10</code></td></tr>
+            </tbody></table></div>
+          </section>
+          <section class="panel"><h4>使用與錯誤處理</h4>
+<pre class="cmd">npm install digital-conversion
+const { reverseString, clamp } = require('digital-conversion');
+import { formatThousands } from 'digital-conversion';
+
+formatThousands('1000');  // TypeError
+randomInt(10, 1);         // RangeError
+npm test</pre>
+            <p class="panel-note">需求 Node.js 18+；遵循 Semantic Versioning，授權為 ISC。</p>
+          </section>
+        </div>
+        <section class="panel wide"><h4>公開發布紀錄</h4>
+          <ul class="detail-list">
+            <li><strong>公開位置</strong>：npm 套件登錄，套件名稱 <code>digital-conversion</code>；任何人皆可公開安裝。</li>
+            <li><strong>版本與授權</strong>：<code>1.0.0</code>，ISC 授權；版本變動依 Semantic Versioning 區分 patch / minor / major。</li>
+            <li><strong>套件內容</strong>：<code>package.json</code> 的 <code>files</code> 只打包 <code>index.js</code>、<code>README.md</code> 與 <code>LICENSE</code>，保持體積精簡。</li>
+            <li><strong>品質確認</strong>：<code>npm test</code> 使用 Node.js 內建 test runner 驗證六個函式與參數錯誤處理。</li>
+            <li><strong>與其他週的界線</strong>：Cloudflare Workers + D1 的線上服務在第 9 週；本週的重點是「寫套件並公開發布到 npm」。</li>
+          </ul>
+        </section>
+        <footer class="entry-foot"><a href="../10/README.md" target="_blank" rel="noopener">README.md ↗</a><a href="https://www.npmjs.com/package/digital-conversion" target="_blank" rel="noopener">npm 公開套件 ↗</a><span>index.js · test/index.test.js</span></footer>
+      </div>
+    </article>
+
+    <article class="entry reveal entry-last" id="midterm" data-cat="tool">
+      <header class="entry-head">
+        <div class="week-mark"><span>表</span><small>INDEX</small></div>
+        <div class="entry-title"><p class="eyebrow">Midterm · 每週檢驗表格</p><h3>繳交狀態與原始連結</h3>
+          <div class="chips"><span>midterm/README.md</span><span>8 週登錄</span></div>
+        </div>
+        <a class="entry-link" href="../midterm/README.md" target="_blank" rel="noopener">原始文件 ↗</a>
+      </header>
+      <div class="entry-body">
+        <p class="lede">期中檢驗文件以表格整理第 1、2、3、4、6、7、8、9 週的習題、按時繳交狀態與 GitHub 連結；本檔案另補上第 10 週已公開發布到 npm 的套件，並為每週建立詳細說明頁。</p>
+        <div class="split">
+          <section class="panel"><h4>原始表格重點</h4>
+            <ul class="detail-list">
+              <li>全部登錄週次均為「有上課且準時繳交」，補交證明欄位皆空白。</li>
+              <li>第 3 週的作業連結指向 <code>_10hw3/03</code>，其餘指向 <code>_se</code> 對應資料夾。</li>
+              <li>缺號的 5 週未出現在檢驗表中；本檔案保留原始週次編號，不重新編號。</li>
+            </ul>
+          </section>
+          <section class="panel"><h4>本檔案的整理原則</h4>
+            <ul class="detail-list">
+              <li>內容取自各資料夾 README、架構文件與 <code>package.json</code>，不推測未記載的實作。</li>
+              <li>程式碼與截圖以相對路徑連結回原資料夾，原始檔不被複製或覆寫。</li>
+              <li>每週條目皆附「本機資料夾」與「GitHub / 線上版本」連結，方便交叉查閱。</li>
+            </ul>
+          </section>
+        </div>
+        <footer class="entry-foot"><a href="../README.md" target="_blank" rel="noopener">課程資訊 ↗</a><a href="#top">回到頂部 ↑</a></footer>
+      </div>
+    </article>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div><span class="footer-mark">11</span><p>現代軟體工程 · 作業檔案<br><small>整理自 _se 資料夾的原始 README 與文件</small></p></div>
+  <div class="footer-links"><a href="README.md" target="_blank" rel="noopener">使用說明 ↗</a><a href="../README.md" target="_blank" rel="noopener">課程 README ↗</a><a href="../midterm/README.md" target="_blank" rel="noopener">每週檢驗表 ↗</a><a href="#top">回到頂部 ↑</a></div>
+  <p class="footer-id">劉甄娜 · 111410510 · 115 學年上學期</p>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="截圖放大">
+  <button type="button" class="lightbox-close" aria-label="關閉">&times;</button>
+  <img id="lightboxImg" alt="">
+  <p id="lightboxCaption"></p>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
