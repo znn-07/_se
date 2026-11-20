@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="TELEMETRY HUB — 以 Cloudflare Workers 與 D1 打造的即時遙測監控儀表板">
+  <title>TELEMETRY HUB · 遙測資料監控系統</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="ambient" aria-hidden="true">
+    <div class="ambient-grid"></div>
+    <div class="ambient-glow ambient-glow--one"></div>
+    <div class="ambient-glow ambient-glow--two"></div>
+    <div class="ambient-scan"></div>
+  </div>
+
+  <header class="masthead">
+    <div class="shell masthead__inner">
+      <a class="brand" href="#top" aria-label="TELEMETRY HUB 首頁">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none">
+            <circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="1.2" opacity=".45"/>
+            <circle cx="20" cy="20" r="10" stroke="currentColor" stroke-width="1.2" opacity=".7"/>
+            <circle cx="20" cy="20" r="3" fill="currentColor"/>
+            <path d="M20 3v7M20 30v7M3 20h7M30 20h7" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </span>
+        <span class="brand__type">
+          <strong>TELEMETRY<span>//</span>HUB</strong>
+          <small>REMOTE SENSING CONSOLE</small>
+        </span>
+      </a>
+
+      <div class="masthead__status">
+        <span class="status-pill" id="connectionPill">
+          <span class="status-dot"></span>
+          <span id="connectionText">連線中</span>
+        </span>
+        <span class="masthead__clock" id="clock">--:--:-- <em>UTC</em></span>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="shell hero">
+      <div class="hero__copy">
+        <p class="eyebrow"><span></span> FIELD TELEMETRY / LIVE LINK</p>
+        <h1>把現場的每一次<br><span class="hero__accent">心跳</span>，變成資料。</h1>
+        <p class="hero__lede">感測器持續回傳溫度、濕度、電壓與訊號強度。資料進入 D1 之後，在這裡被即時統計、比對門檻，並畫成一條看得見的波形。</p>
+        <div class="hero__actions">
+          <button class="btn btn--primary" id="injectBtn" type="button">
+            <span>注入一筆讀數</span>
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h13M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.6"/></svg>
+          </button>
+          <button class="btn btn--ghost" id="pauseBtn" type="button" aria-pressed="false">
+            <span id="pauseLabel">暫停即時更新</span>
+          </button>
+        </div>
+      </div>
+      <div class="hero__figure" aria-hidden="true">
+        <div class="hero__ring hero__ring--outer"></div>
+        <div class="hero__ring hero__ring--inner"></div>
+        <div class="hero__crosshair"></div>
+        <span class="hero__figure-label hero__figure-label--top">LAT 24.43 N</span>
+        <span class="hero__figure-label hero__figure-label--bottom">LON 118.32 E</span>
+        <strong class="hero__figure-value" id="heroValue">--.-</strong>
+        <span class="hero__figure-unit" id="heroUnit">NO SIGNAL</span>
+      </div>
+    </section>
+
+    <section class="shell kpis" aria-label="系統總覽">
+      <article class="kpi kpi--cyan">
+        <span class="kpi__index">01 / VOLUME</span>
+        <span class="kpi__label">累計讀數</span>
+        <strong class="kpi__value" id="kpiTotal">0</strong>
+        <span class="kpi__foot">筆紀錄已寫入 D1</span>
+        <span class="kpi__bar"><i></i></span>
+      </article>
+      <article class="kpi kpi--amber">
+        <span class="kpi__index">02 / NODES</span>
+        <span class="kpi__label">線上裝置</span>
+        <strong class="kpi__value" id="kpiDevices">0</strong>
+        <span class="kpi__foot">個裝置回報中</span>
+        <span class="kpi__bar"><i></i></span>
+      </article>
+      <article class="kpi kpi--red">
+        <span class="kpi__index">03 / ALERTS</span>
+        <span class="kpi__label">異常告警</span>
+        <strong class="kpi__value" id="kpiAlerts">0</strong>
+        <span class="kpi__foot">條規則正在觸發</span>
+        <span class="kpi__bar"><i></i></span>
+      </article>
+      <article class="kpi kpi--green">
+        <span class="kpi__index">04 / PACKET</span>
+        <span class="kpi__label">最後封包</span>
+        <strong class="kpi__value kpi__value--time" id="kpiLast">--:--</strong>
+        <span class="kpi__foot" id="kpiLastDate">尚無資料</span>
+        <span class="kpi__bar"><i></i></span>
+      </article>
+    </section>
+
+    <section class="shell console">
+      <div class="panel panel--trace">
+        <div class="panel__head">
+          <div>
+            <span class="panel__index">01 / SIGNAL TRACE</span>
+            <h2>波形監測</h2>
+          </div>
+          <div class="panel__tools">
+            <button class="icon-btn" id="refreshBtn" type="button" title="立即重新整理" aria-label="立即重新整理">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M16 8a6 6 0 1 0 1 4M16 3v5h-5" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="chips" id="seriesChips" role="group" aria-label="選擇監測指標"></div>
+
+        <div class="chart-wrap">
+          <canvas id="chart" aria-label="遙測數值時序波形圖"></canvas>
+          <div class="chart-watermark" aria-hidden="true">LIVE / STREAM</div>
+        </div>
+
+        <div class="readouts" id="readouts">
+          <div><span>LATEST</span><strong id="roLatest">--</strong></div>
+          <div><span>MIN</span><strong id="roMin">--</strong></div>
+          <div><span>MAX</span><strong id="roMax">--</strong></div>
+          <div><span>AVERAGE</span><strong id="roAvg">--</strong></div>
+          <div><span>SAMPLES</span><strong id="roCount">--</strong></div>
+        </div>
+      </div>
+
+      <div class="console__side">
+        <div class="panel panel--alerts">
+          <div class="panel__head">
+            <div>
+              <span class="panel__index">02 / THRESHOLD</span>
+              <h2>告警控制台</h2>
+            </div>
+            <span class="count-badge" id="alertBadge">0</span>
+          </div>
+          <div class="alert-list" id="alertList" aria-live="polite"></div>
+        </div>
+
+        <div class="panel panel--feed">
+          <div class="panel__head">
+            <div>
+              <span class="panel__index">03 / PACKET LOG</span>
+              <h2>即時事件</h2>
+            </div>
+            <span class="live-tag"><i></i> STREAMING</span>
+          </div>
+          <div class="feed-list" id="feedList"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell devices">
+      <div class="section-heading">
+        <div>
+          <span class="panel__index">04 / NODE MATRIX</span>
+          <h2>裝置狀態表</h2>
+        </div>
+        <p>依 <code>device + metric</code> 分組統計，數值越接近右側代表越接近門檻。</p>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>裝置</th><th>指標</th><th>最新值</th><th>範圍</th><th>平均</th><th>樣本</th><th>狀態</th>
+            </tr>
+          </thead>
+          <tbody id="deviceRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="shell api-section">
+      <div class="panel panel--api">
+        <div class="panel__head">
+          <div>
+            <span class="panel__index">05 / EDGE API</span>
+            <h2>資料入口</h2>
+          </div>
+          <button class="btn btn--danger" id="resetBtn" type="button">清空資料</button>
+        </div>
+        <div class="api-grid">
+          <div class="endpoint-list">
+            <div class="endpoint"><span>POST</span><code>/api/telemetry</code><em>上傳單筆或批次量測</em></div>
+            <div class="endpoint"><span>GET</span><code>/api/summary</code><em>統計、告警與最近紀錄</em></div>
+            <div class="endpoint"><span>POST</span><code>/api/demo</code><em>注入一筆示範讀數</em></div>
+            <div class="endpoint"><span>GET</span><code>/api/health</code><em>健康檢查</em></div>
+          </div>
+          <pre class="code-block"><code>curl -X POST https://&lt;worker&gt;.workers.dev/api/telemetry \
+  -H "Content-Type: application/json" \
+  -d '{"device":"sensor-a1","metric":"temperature","value":32.5,"unit":"C"}'</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer__inner">
+      <div>
+        <strong>TELEMETRY//HUB</strong>
+        <span>現代軟體工程 · 115 學年上學期 · 劉甄娜 111410510</span>
+      </div>
+      <span class="footer__platform">BUILT ON CLOUDFLARE WORKERS + D1</span>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="banner" id="errorBanner" hidden></div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
