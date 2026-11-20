@@ -1,4 +1,4 @@
-# TELEMETRY HUB · 遙測資料監控系統
+# TELEMETRY HUB · 遙測資料監控系統-期末專案
 
 TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測平台：接收裝置（溫度、濕度、電壓、訊號強度等）回傳的量測資料，寫入 **Cloudflare D1**，即時統計、判斷警戒條件，並在瀏覽器儀表板中視覺化。
 
