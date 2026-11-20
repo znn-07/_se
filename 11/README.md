@@ -4,16 +4,6 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 
 整套系統沒有獨立的後端伺服器：Worker 同時處理 API 與靜態頁面，前端為純 HTML / CSS / JavaScript，不用 React、不用打包工具。
 
-| 欄位 | 內容 |
-| --- | --- |
-| 課程 | 現代軟體工程 · 115 學年上學期 |
-| 教師 | 陳鍾誠 · 金門大學資訊工程系 |
-| 學生 | 劉甄娜 |
-| 學號 | 111410510 |
-| 入口 | `public/index.html` |
-| 平台 | Cloudflare Workers + D1 + Workers Static Assets |
-
----
 
 ## 核心能力
 
