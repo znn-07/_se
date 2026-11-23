@@ -5,6 +5,8 @@ import { normalizePayload, normalizeReading, ValidationError } from '../src/vali
 import { latestReadings, summarize } from '../src/stats.js';
 import { evaluateAlerts } from '../src/rules.js';
 import { makeDemoReading } from '../src/demo.js';
+import { csvCell, toCsv } from '../src/export.js';
+import { hasValidToken, requiresToken } from '../src/auth.js';
 
 const NOW = new Date('2026-11-20T09:30:00.000Z');
 
@@ -38,7 +40,13 @@ test('normalizeReading rejects invalid values', () => {
   assert.throws(() => normalizeReading({ device: '', metric: 'temperature', value: 1 }), ValidationError);
   assert.throws(() => normalizeReading({ device: 'a', metric: 'pressure', value: 1 }), ValidationError);
   assert.throws(() => reading({ value: Number.NaN }), ValidationError);
+  assert.throws(() => reading({ value: Number.POSITIVE_INFINITY }), ValidationError);
+  assert.throws(() => reading({ value: null }), ValidationError);
+  assert.throws(() => reading({ value: true }), ValidationError);
+  assert.throws(() => reading({ value: [26] }), ValidationError);
+  assert.throws(() => reading({ value: '   ' }), ValidationError);
   assert.throws(() => reading({ timestamp: 'not-a-date' }), ValidationError);
+  assert.throws(() => reading({ timestamp: 1763620200000 }), ValidationError);
 });
 
 test('normalizePayload accepts a single reading or a batch', () => {
@@ -46,6 +54,7 @@ test('normalizePayload accepts a single reading or a batch', () => {
   const batch = normalizePayload({ readings: [reading(), reading({ value: 28 })] }, NOW);
   assert.equal(batch.length, 2);
   assert.throws(() => normalizePayload({ readings: [] }), ValidationError);
+  assert.throws(() => normalizePayload({ readings: {} }), ValidationError);
 });
 
 test('summarize groups by device and metric', () => {
@@ -89,4 +98,28 @@ test('makeDemoReading is deterministic with an injected random source', () => {
   assert.equal(demo.metric, 'temperature');
   assert.equal(demo.timestamp, NOW.toISOString());
   assert.ok(Number.isFinite(demo.value));
+});
+
+test('CSV cells are quoted and protected against spreadsheet formulas', () => {
+  assert.equal(csvCell('a,b'), '"a,b"');
+  assert.equal(csvCell('say "hi"'), '"say ""hi"""');
+  assert.equal(csvCell('=SUM(A1)'), '"\'=SUM(A1)"');
+  assert.equal(csvCell(-68), '"-68"');
+  assert.equal(toCsv([{ device: 'a', metric: 'signal', value: -68, unit: 'dBm', timestamp: 't', receivedAt: 'r' }]),
+    'device,metric,value,unit,timestamp,receivedAt\r\n'
+    + '"a","signal","-68","dBm","t","r"\r\n');
+});
+
+test('token protection applies only to write endpoints', () => {
+  assert.equal(requiresToken('POST', '/api/telemetry'), true);
+  assert.equal(requiresToken('POST', '/api/demo'), true);
+  assert.equal(requiresToken('DELETE', '/api/readings'), true);
+  assert.equal(requiresToken('GET', '/api/summary'), false);
+
+  const request = new Request('http://localhost/api/telemetry', {
+    headers: { authorization: 'Bearer secret' },
+  });
+  assert.equal(hasValidToken(request, { API_TOKEN: 'secret' }), true);
+  assert.equal(hasValidToken(request, { API_TOKEN: 'other' }), false);
+  assert.equal(hasValidToken(new Request('http://localhost/api/telemetry'), {}), true);
 });

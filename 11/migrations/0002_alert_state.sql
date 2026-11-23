@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS alert_state (
+  rule_id TEXT PRIMARY KEY,
+  active INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);

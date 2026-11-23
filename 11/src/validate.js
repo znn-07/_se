@@ -36,7 +36,11 @@ export function normalizeReading(input, now = new Date()) {
     throw new ValidationError(`unsupported metric: ${metric}`);
   }
 
-  const value = typeof input.value === 'number' ? input.value : Number(input.value);
+  if (typeof input.value !== 'number'
+    && (typeof input.value !== 'string' || input.value.trim() === '')) {
+    throw new ValidationError('value must be a finite number');
+  }
+  const value = Number(input.value);
   if (!Number.isFinite(value)) {
     throw new ValidationError('value must be a finite number');
   }
@@ -51,6 +55,8 @@ export function normalizeReading(input, now = new Date()) {
   let timestamp;
   if (input.timestamp === undefined || input.timestamp === null || input.timestamp === '') {
     timestamp = now.toISOString();
+  } else if (typeof input.timestamp !== 'string') {
+    throw new ValidationError('timestamp must be an ISO 8601 string');
   } else {
     const parsed = new Date(input.timestamp);
     if (Number.isNaN(parsed.getTime())) {
@@ -72,6 +78,10 @@ export function normalizeReading(input, now = new Date()) {
 export function normalizePayload(body, now = new Date()) {
   if (!isObject(body)) {
     throw new ValidationError('payload must be a JSON object');
+  }
+
+  if (body.readings !== undefined && !Array.isArray(body.readings)) {
+    throw new ValidationError('readings must be an array');
   }
 
   const items = Array.isArray(body.readings) ? body.readings : [body];

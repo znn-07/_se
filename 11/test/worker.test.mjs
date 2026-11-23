@@ -2,12 +2,31 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import worker from '../worker/index.js';
+import { summarize } from '../src/stats.js';
 
 function createMockD1() {
   const rows = [];
+  const alertState = [];
   let nextId = 1;
 
   function select(sql, binds) {
+    if (sql.includes('alert_state')) {
+      return alertState.map((row) => ({ ...row }));
+    }
+    if (sql.includes('ROW_NUMBER() OVER')) {
+      return summarize(rows.map(({ id, ...row }) => row)).map((item) => ({
+        device: item.device,
+        metric: item.metric,
+        unit: item.unit,
+        latestAt: item.latestAt,
+        latest: item.latest,
+        count: item.count,
+        min: item.min,
+        max: item.max,
+        avg: item.avg,
+      }));
+    }
+
     let index = 0;
     const device = sql.includes('device = ?') ? binds[index++] : null;
     const metric = sql.includes('metric = ?') ? binds[index++] : null;
@@ -53,6 +72,18 @@ function createMockD1() {
           rows.length = 0;
           return { success: true, meta: { changes } };
         }
+        if (sql.startsWith('INSERT INTO alert_state')) {
+          const ruleId = binds[0];
+          const existing = alertState.find((row) => row.rule_id === ruleId);
+          if (existing) existing.active = binds[1];
+          else alertState.push({ rule_id: ruleId, active: binds[1] });
+          return { success: true, meta: { changes: 1 } };
+        }
+        if (sql.startsWith('DELETE FROM alert_state')) {
+          const changes = alertState.length;
+          alertState.length = 0;
+          return { success: true, meta: { changes } };
+        }
         return { success: true, meta: { changes: 0 } };
       },
     };
@@ -70,9 +101,9 @@ function makeEnv(db) {
   };
 }
 
-async function call(path, options, db = createMockD1()) {
+async function call(path, options, db = createMockD1(), env = {}) {
   const request = new Request(`http://localhost${path}`, options);
-  return { response: await worker.fetch(request, makeEnv(db)), db };
+  return { response: await worker.fetch(request, { ...makeEnv(db), ...env }), db };
 }
 
 function post(path, body) {
@@ -164,4 +195,111 @@ test('unknown API routes return 404 and non-API routes serve assets', async () =
 
   const asset = await call('/index.html');
   assert.equal(await asset.response.text(), 'asset:/index.html');
+});
+
+test('write endpoints require a bearer token when API_TOKEN is configured', async () => {
+  const db = createMockD1();
+  const env = { API_TOKEN: 's3cret' };
+  const payload = post('/api/telemetry', {
+    device: 'sensor-a1',
+    metric: 'temperature',
+    value: 28,
+  });
+
+  const denied = await call('/api/telemetry', payload, db, env);
+  assert.equal(denied.response.status, 401);
+  assert.equal((await denied.response.json()).error, 'UNAUTHORIZED');
+
+  const authorized = await call('/api/telemetry', {
+    ...payload,
+    headers: { 'content-type': 'application/json', authorization: 'Bearer s3cret' },
+  }, db, env);
+  assert.equal(authorized.response.status, 201);
+
+  const read = await call('/api/summary', undefined, db, env);
+  assert.equal(read.response.status, 200);
+});
+
+test('stats aggregate every stored reading instead of a sampled window', async () => {
+  const readings = Array.from({ length: 6 }, (_, index) => ({
+    device: 'sensor-a1',
+    metric: 'temperature',
+    value: 20 + index,
+    timestamp: `2026-11-20T0${index}:00:00Z`,
+  }));
+  const seeded = await call('/api/telemetry', post('/api/telemetry', { readings }));
+  const { response } = await call('/api/stats', undefined, seeded.db);
+  const body = await response.json();
+
+  assert.equal(body.stats[0].count, 6);
+  assert.equal(body.stats[0].latest, 25);
+  assert.equal(body.stats[0].avg, 22.5);
+});
+
+test('webhook receives only alert transitions', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return new Response('{}', { status: 200 });
+  };
+
+  try {
+    const env = {
+      ALERT_WEBHOOK_URL: 'https://example.com/hook',
+      ALERT_WEBHOOK_TOKEN: 'hook-secret',
+    };
+    const high = await call('/api/telemetry', post('/api/telemetry', {
+      device: 'sensor-a1',
+      metric: 'temperature',
+      value: 33,
+    }), createMockD1(), env);
+    assert.equal(high.response.status, 201);
+    assert.equal(calls.length, 1);
+    assert.equal(JSON.parse(calls[0].options.body).type, 'triggered');
+    assert.equal(calls[0].options.headers.authorization, 'Bearer hook-secret');
+
+    const low = await call('/api/telemetry', post('/api/telemetry', {
+      device: 'sensor-a1',
+      metric: 'temperature',
+      value: 26,
+    }), high.db, { ...env, ALERT_WEBHOOK_RESOLVE: '1' });
+    assert.equal(low.response.status, 201);
+    assert.equal(calls.length, 2);
+    assert.equal(JSON.parse(calls[1].options.body).type, 'resolved');
+
+    const repeated = await call('/api/telemetry', post('/api/telemetry', {
+      device: 'sensor-a1',
+      metric: 'temperature',
+      value: 26,
+    }), low.db, { ...env, ALERT_WEBHOOK_RESOLVE: '1' });
+    assert.equal(repeated.response.status, 201);
+    assert.equal(calls.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('export endpoint returns filtered and escaped CSV', async () => {
+  const seeded = await call('/api/telemetry', post('/api/telemetry', {
+    readings: [
+      {
+        device: '=cmd',
+        metric: 'temperature',
+        value: 31,
+        unit: 'C',
+        timestamp: '2026-11-20T01:00:00Z',
+      },
+      { device: 'sensor-a2', metric: 'voltage', value: 12, unit: 'V' },
+    ],
+  }));
+  const { response } = await call('/api/export?device=%3Dcmd', undefined, seeded.db);
+
+  assert.match(response.headers.get('content-type'), /text\/csv/);
+  assert.match(response.headers.get('content-disposition'), /attachment/);
+
+  const text = await response.text();
+  assert.ok(text.startsWith('device,metric,value,unit,timestamp,receivedAt'));
+  assert.match(text, /"'=cmd","temperature"/);
+  assert.doesNotMatch(text, /sensor-a2/);
 });

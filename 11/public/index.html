@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="TELEMETRY HUB — 以 Cloudflare Workers 與 D1 打造的即時遙測監控儀表板">
+  <meta name="color-scheme" content="dark light">
   <title>TELEMETRY HUB · 遙測資料監控系統</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,6 +37,9 @@
       </a>
 
       <div class="masthead__status">
+        <button class="icon-btn" id="themeBtn" type="button" title="切換淺色主題" aria-label="切換淺色主題">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8Z" stroke="currentColor" stroke-width="1.4"/></svg>
+        </button>
         <span class="status-pill" id="connectionPill">
           <span class="status-dot"></span>
           <span id="connectionText">連線中</span>
@@ -185,7 +189,10 @@
             <span class="panel__index">05 / EDGE API</span>
             <h2>資料入口</h2>
           </div>
-          <button class="btn btn--danger" id="resetBtn" type="button">清空資料</button>
+          <div class="panel__actions">
+            <a class="btn btn--ghost" id="exportBtn" href="/api/export?format=csv" download>匯出 CSV</a>
+            <button class="btn btn--danger" id="resetBtn" type="button">清空資料</button>
+          </div>
         </div>
         <div class="api-grid">
           <div class="endpoint-list">

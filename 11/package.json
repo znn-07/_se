@@ -10,6 +10,9 @@
     "db:local": "wrangler d1 migrations apply telemetry-hub-db --local",
     "db:remote": "wrangler d1 migrations apply telemetry-hub-db --remote",
     "cf:dry": "wrangler deploy --dry-run",
+    "config:check": "node scripts/check-config.mjs",
+    "predeploy": "node scripts/check-config.mjs",
+    "check": "npm test && npm run config:check",
     "test": "node --test"
   },
   "devDependencies": {

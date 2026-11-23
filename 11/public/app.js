@@ -33,8 +33,64 @@ function utcParts(iso) {
   };
 }
 
+const THEME_KEY = 'telemetry-hub-theme';
+
 function keyOf(device, metric) {
   return `${device}::${metric}`;
+}
+
+function currentSeries() {
+  return (state.data?.stats ?? []).find((item) => keyOf(item.device, item.metric) === state.seriesKey);
+}
+
+function chartColors() {
+  const style = getComputedStyle(document.documentElement);
+  const read = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
+  return {
+    grid: read('--chart-grid', 'rgba(92, 225, 214, .07)'),
+    line: read('--chart-line', '#5ce1d6'),
+    fillTop: read('--chart-fill-top', 'rgba(92, 225, 214, .26)'),
+    fillBottom: read('--chart-fill-bottom', 'rgba(92, 225, 214, 0)'),
+    point: read('--chart-point', '#5ce1d6'),
+    last: read('--chart-last', '#ffb454'),
+    threshold: read('--chart-threshold', 'rgba(255, 107, 107, .6)'),
+    axis: read('--chart-axis', 'rgba(120, 144, 158, .8)'),
+  };
+}
+
+function storedTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function applyTheme(theme) {
+  const light = theme === 'light';
+  document.documentElement.dataset.theme = theme;
+  const button = $('themeBtn');
+  const label = light ? '切換深色主題' : '切換淺色主題';
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.innerHTML = light
+    ? '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.5 1.5M14.5 14.5 16 16M16 4l-1.5 1.5M5.5 14.5 4 16" stroke="currentColor" stroke-width="1.4"/></svg>'
+    : '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8Z" stroke="currentColor" stroke-width="1.4"/></svg>';
+}
+
+function initTheme() {
+  const stored = storedTheme();
+  const preferred = window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  applyTheme(stored === 'light' || stored === 'dark' ? stored : preferred);
+
+  $('themeBtn').addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {}
+    applyTheme(next);
+    drawChart(currentSeries());
+  });
 }
 
 function showToast(message, isError = false) {
@@ -199,7 +255,8 @@ function drawChart(series) {
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  ctx.strokeStyle = 'rgba(92, 225, 214, 0.07)';
+  const colors = chartColors();
+  ctx.strokeStyle = colors.grid;
   ctx.lineWidth = 1;
   for (let i = 1; i < 6; i += 1) {
     const x = (width / 6) * i;
@@ -222,14 +279,14 @@ function drawChart(series) {
     .reverse() ?? [];
 
   if (points.length === 0) {
-    ctx.strokeStyle = 'rgba(120, 144, 158, 0.35)';
+    ctx.strokeStyle = colors.axis;
     ctx.setLineDash([4, 6]);
     ctx.beginPath();
     ctx.moveTo(0, height / 2);
     ctx.lineTo(width, height / 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(120, 144, 158, 0.7)';
+    ctx.fillStyle = colors.axis;
     ctx.font = '10px "IBM Plex Mono", monospace';
     ctx.textAlign = 'center';
     ctx.fillText('WAITING FOR SIGNAL', width / 2, height / 2 - 14);
@@ -251,25 +308,25 @@ function drawChart(series) {
   const xOf = (index) => plotLeft + (index / Math.max(1, points.length - 1)) * (plotRight - plotLeft);
   const yOf = (value) => plotBottom - ((value - min) / (max - min)) * (plotBottom - plotTop);
 
-  const alert = state.data?.alerts.find((entry) => keyOf(entry.device, entry.metric) === state.seriesKey);
+  const alert = state.data?.alerts?.find((entry) => keyOf(entry.device, entry.metric) === state.seriesKey);
   if (alert) {
     const y = yOf(alert.threshold);
-    ctx.strokeStyle = 'rgba(255, 107, 107, 0.6)';
+    ctx.strokeStyle = colors.threshold;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
     ctx.moveTo(plotLeft, y);
     ctx.lineTo(plotRight, y);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(255, 107, 107, 0.85)';
+    ctx.fillStyle = colors.threshold;
     ctx.font = '9px "IBM Plex Mono", monospace';
     ctx.textAlign = 'right';
     ctx.fillText(`LIMIT ${fmt(alert.threshold)}`, plotRight, y - 6);
   }
 
   const gradient = ctx.createLinearGradient(0, plotTop, 0, plotBottom);
-  gradient.addColorStop(0, 'rgba(92, 225, 214, 0.26)');
-  gradient.addColorStop(1, 'rgba(92, 225, 214, 0)');
+  gradient.addColorStop(0, colors.fillTop);
+  gradient.addColorStop(1, colors.fillBottom);
 
   ctx.beginPath();
   ctx.moveTo(xOf(0), plotBottom);
@@ -286,9 +343,9 @@ function drawChart(series) {
     if (index === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });
-  ctx.strokeStyle = '#5ce1d6';
+  ctx.strokeStyle = colors.line;
   ctx.lineWidth = 2;
-  ctx.shadowColor = 'rgba(92, 225, 214, 0.5)';
+  ctx.shadowColor = colors.line;
   ctx.shadowBlur = 12;
   ctx.stroke();
   ctx.shadowBlur = 0;
@@ -296,11 +353,11 @@ function drawChart(series) {
   points.forEach((item, index) => {
     ctx.beginPath();
     ctx.arc(xOf(index), yOf(item.value), index === points.length - 1 ? 3.5 : 2, 0, Math.PI * 2);
-    ctx.fillStyle = index === points.length - 1 ? '#ffb454' : '#5ce1d6';
+    ctx.fillStyle = index === points.length - 1 ? colors.last : colors.point;
     ctx.fill();
   });
 
-  ctx.fillStyle = 'rgba(120, 144, 158, 0.8)';
+  ctx.fillStyle = colors.axis;
   ctx.font = '9px "IBM Plex Mono", monospace';
   ctx.textAlign = 'left';
   ctx.fillText(fmt(max), plotRight + 6, plotTop + 4);
@@ -324,7 +381,7 @@ function render() {
     chip.setAttribute('aria-pressed', String(active));
   });
 
-  const series = (data.stats ?? []).find((item) => keyOf(item.device, item.metric) === state.seriesKey);
+  const series = currentSeries();
   renderReadouts(series);
   renderAlerts(data.alerts ?? []);
   renderFeed(data.recent ?? []);
@@ -415,8 +472,9 @@ function init() {
   $('resetBtn').addEventListener('click', reset);
   $('refreshBtn').addEventListener('click', () => refresh(true));
   $('pauseBtn').addEventListener('click', toggleLive);
-  window.addEventListener('resize', () => drawChart(state.data?.stats?.find((item) => keyOf(item.device, item.metric) === state.seriesKey)));
+  window.addEventListener('resize', () => drawChart(currentSeries()));
 
+  initTheme();
   startClock();
   refresh();
   state.pollTimer = setInterval(() => refresh(), 3000);

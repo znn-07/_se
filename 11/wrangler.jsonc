@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "telemetry-hub-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "596ce2ce-0c3e-4586-9fe7-7021f1556aa4",
       "migrations_dir": "migrations"
     }
   ],
