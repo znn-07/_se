@@ -432,6 +432,16 @@ async function inject() {
   }
 }
 
+async function loadCwa() {
+  try {
+    const result = await post('/api/import/cwa', { method: 'POST' });
+    showToast(`已載入 ${result.accepted} 筆中央氣象署觀測資料`);
+    await refresh();
+  } catch (error) {
+    showToast(`載入失敗：${error.message}`, true);
+  }
+}
+
 async function reset() {
   if (!window.confirm('確定要清空所有遙測紀錄嗎？')) return;
   try {
@@ -469,6 +479,7 @@ function startClock() {
 
 function init() {
   $('injectBtn').addEventListener('click', inject);
+  $('cwaBtn').addEventListener('click', loadCwa);
   $('resetBtn').addEventListener('click', reset);
   $('refreshBtn').addEventListener('click', () => refresh(true));
   $('pauseBtn').addEventListener('click', toggleLive);

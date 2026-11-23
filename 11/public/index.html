@@ -190,6 +190,7 @@
             <h2>資料入口</h2>
           </div>
           <div class="panel__actions">
+            <button class="btn btn--ghost" id="cwaBtn" type="button">載入氣象資料</button>
             <a class="btn btn--ghost" id="exportBtn" href="/api/export?format=csv" download>匯出 CSV</a>
             <button class="btn btn--danger" id="resetBtn" type="button">清空資料</button>
           </div>
@@ -199,6 +200,7 @@
             <div class="endpoint"><span>POST</span><code>/api/telemetry</code><em>上傳單筆或批次量測</em></div>
             <div class="endpoint"><span>GET</span><code>/api/summary</code><em>統計、告警與最近紀錄</em></div>
             <div class="endpoint"><span>POST</span><code>/api/demo</code><em>注入一筆示範讀數</em></div>
+            <div class="endpoint"><span>POST</span><code>/api/import/cwa</code><em>載入中央氣象署觀測資料</em></div>
             <div class="endpoint"><span>GET</span><code>/api/health</code><em>健康檢查</em></div>
           </div>
           <pre class="code-block"><code>curl -X POST https://&lt;worker&gt;.workers.dev/api/telemetry \

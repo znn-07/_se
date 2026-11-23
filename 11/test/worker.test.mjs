@@ -280,6 +280,39 @@ test('webhook receives only alert transitions', async () => {
   }
 });
 
+test('CWA import endpoint requires configuration and stores real observations', async () => {
+  const missing = await call('/api/import/cwa', { method: 'POST' });
+  assert.equal(missing.response.status, 503);
+  assert.equal((await missing.response.json()).error, 'CWA_NOT_CONFIGURED');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    success: 'true',
+    records: {
+      Station: [{
+        StationId: '466920',
+        ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
+        WeatherElement: { AirTemperature: '25.8', RelativeHumidity: '68.4' },
+      }],
+    },
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+  try {
+    const imported = await call('/api/import/cwa', { method: 'POST' }, createMockD1(), {
+      CWA_API_KEY: 'CWA-test',
+    });
+    assert.equal(imported.response.status, 201);
+    assert.deepEqual(await imported.response.json(), { ok: true, accepted: 2, total: 2 });
+
+    const list = await call('/api/readings?limit=10', undefined, imported.db);
+    const body = await list.response.json();
+    assert.ok(body.readings.every((item) => item.device === 'cwa-466920'));
+    assert.deepEqual(body.readings.map((item) => item.metric).sort(), ['humidity', 'temperature']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('export endpoint returns filtered and escaped CSV', async () => {
   const seeded = await call('/api/telemetry', post('/api/telemetry', {
     readings: [

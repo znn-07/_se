@@ -7,6 +7,7 @@ import { evaluateAlerts } from '../src/rules.js';
 import { makeDemoReading } from '../src/demo.js';
 import { csvCell, toCsv } from '../src/export.js';
 import { hasValidToken, requiresToken } from '../src/auth.js';
+import { cwaUrl, toReadings } from '../src/cwa.js';
 
 const NOW = new Date('2026-11-20T09:30:00.000Z');
 
@@ -122,4 +123,64 @@ test('token protection applies only to write endpoints', () => {
   assert.equal(hasValidToken(request, { API_TOKEN: 'secret' }), true);
   assert.equal(hasValidToken(request, { API_TOKEN: 'other' }), false);
   assert.equal(hasValidToken(new Request('http://localhost/api/telemetry'), {}), true);
+  assert.equal(requiresToken('POST', '/api/import/cwa'), true);
+});
+
+test('cwaUrl builds an authorized dataset request', () => {
+  const url = new URL(cwaUrl('CWA-abc 123', '466920'));
+  assert.equal(url.pathname, '/api/v1/rest/datastore/O-A0001-001');
+  assert.equal(url.searchParams.get('Authorization'), 'CWA-abc 123');
+  assert.equal(url.searchParams.get('format'), 'JSON');
+  assert.equal(url.searchParams.get('StationId'), '466920');
+});
+
+test('toReadings converts CWA stations into telemetry readings', () => {
+  const readings = toReadings({
+    success: 'true',
+    records: {
+      Station: [
+        {
+          StationId: '466920',
+          ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
+          WeatherElement: { AirTemperature: '26.5', RelativeHumidity: '0.72' },
+        },
+        {
+          StationId: '466990',
+          ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
+          WeatherElement: { AirTemperature: '-99', RelativeHumidity: '1' },
+        },
+      ],
+    },
+  }, { now: NOW });
+
+  assert.deepEqual(readings, [
+    {
+      device: 'cwa-466920',
+      metric: 'temperature',
+      value: 26.5,
+      unit: 'C',
+      timestamp: '2026-11-22T20:00:00.000Z',
+    },
+    {
+      device: 'cwa-466920',
+      metric: 'humidity',
+      value: 72,
+      unit: '%',
+      timestamp: '2026-11-22T20:00:00.000Z',
+    },
+    {
+      device: 'cwa-466990',
+      metric: 'humidity',
+      value: 100,
+      unit: '%',
+      timestamp: '2026-11-22T20:00:00.000Z',
+    },
+  ]);
+});
+
+test('toReadings rejects failed CWA responses', () => {
+  assert.throws(
+    () => toReadings({ success: 'false', result: { message: '授權碼錯誤' } }),
+    /授權碼錯誤/,
+  );
 });

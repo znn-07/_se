@@ -2,6 +2,7 @@ const PROTECTED = new Set([
   'POST /api/telemetry',
   'POST /api/demo',
   'DELETE /api/readings',
+  'POST /api/import/cwa',
 ]);
 
 function equalToken(left, right) {

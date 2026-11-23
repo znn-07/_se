@@ -13,6 +13,7 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 - **告警規則**：以 Threshold 規則判斷異常，在告警控制台顯示裝置、數值與時間。
 - **視覺化儀表板**：Canvas 繪製時序波形、裝置狀態表、KPI 卡片與即時事件流。
 - **示範資料**：`POST /api/demo` 或儀表板上的「注入一筆」按鈕可立刻產生假資料。
+- **真實氣象資料**：可從中央氣象署 Open Data API 匯入觀測值，device 以 `cwa-<測站編號>` 表示；硬體上傳流程完全不變。
 - **寫入保護**：設定 `API_TOKEN` 後，寫入端點需帶 `Authorization: Bearer <token>`；讀取端點維持公開。
 - **告警通知**：狀態變化時可 POST 到 `ALERT_WEBHOOK_URL`，通知狀態存在 D1，避免重複發送。
 - **SQL 聚合**：統計與告警由 D1 直接分組計算，不再受限於最近 500 筆。
@@ -42,6 +43,7 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 │  src/auth.js      寫入端點 Token 檢查          │
 │  src/export.js    CSV 序列化                   │
 │  src/demo.js      示範資料產生器               │
+│  src/cwa.js       中央氣象署資料轉換            │
 └──────────────────┬───────────────────────────┘
                     ▼
       Cloudflare D1（readings / alert_state）
@@ -102,6 +104,7 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 | `GET` | `/api/health` | 健康檢查，回傳 `{"ok":true,"service":"telemetry-hub"}` |
 | `POST` | `/api/telemetry` | 上傳單筆或批次量測 |
 | `POST` | `/api/demo` | 產生一筆隨機示範量測 |
+| `POST` | `/api/import/cwa` | 從中央氣象署拉取觀測資料並寫入（需 `CWA_API_KEY`） |
 | `GET` | `/api/readings?device=&metric=&limit=100` | 查詢最近量測（最多 500 筆） |
 | `GET` | `/api/stats` | 各裝置 / 指標的統計摘要 |
 | `GET` | `/api/alerts` | 目前的告警列表 |
@@ -109,7 +112,7 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 | `GET` | `/api/export?device=&metric=&limit=5000` | 匯出 CSV（最多 10000 筆） |
 | `DELETE` | `/api/readings` | 清空所有量測（展示用重置） |
 
-設定 `API_TOKEN` 後，`POST /api/telemetry`、`POST /api/demo`、`DELETE /api/readings` 需附帶 `Authorization: Bearer <token>`；所有 `GET` 端點仍可公開讀取。
+設定 `API_TOKEN` 後，`POST /api/telemetry`、`POST /api/demo`、`POST /api/import/cwa`、`DELETE /api/readings` 需附帶 `Authorization: Bearer <token>`；所有 `GET` 端點仍可公開讀取。
 
 成功回應：
 
@@ -154,6 +157,54 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 
 ---
 
+## 匯入中央氣象署真實資料（報告用）
+
+這條路徑使用中央氣象署的**官方 Open Data API**，不是網頁爬蟲；取的資料集是 `O-A0001-001`（自動氣象站觀測資料）。它只是另一種資料來源，原本給硬體用的 `POST /api/telemetry` 完全沒有改變。
+
+### 1. 申請 API 授權碼
+
+1. 到 https://opendata.cwa.gov.tw 註冊／登入會員。
+2. 在會員中心申請「API 授權碼」，取得的字串通常長得像 `CWA-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`。
+3. 授權碼是免費的；API 文件可見 https://opendata.cwa.gov.tw/dist/opendata-swagger.html 。
+
+### 2. 設定授權碼
+
+上傳到 Worker：
+
+```powershell
+npx wrangler secret put CWA_API_KEY
+```
+
+本機腳本可寫在 `11/.dev.vars`（此檔已在 `.gitignore`）：
+
+```dotenv
+CWA_API_KEY=CWA-你的授權碼
+```
+
+### 3. 載入資料
+
+- **最簡單**：在儀表板「資料入口」區塊點「載入氣象資料」，會呼叫 `POST /api/import/cwa`。
+- **命令列**：`npm run import:cwa`，可加 `--clear` 先清空舊的假資料：
+
+```powershell
+npm run import:cwa -- --clear
+```
+
+若只要特定測站，可設 `CWA_STATIONS=466920,466990`（逗號分隔的測站編號）。
+
+### 4. 資料對照
+
+| CWA 欄位 | Telemetry HUB 欄位 |
+| --- | --- |
+| `StationId` | `device = cwa-<測站編號>` |
+| `WeatherElement.AirTemperature` | `metric = temperature`，單位 `C` |
+| `WeatherElement.RelativeHumidity` | `metric = humidity`，單位 `%` |
+| `ObsTime.DateTime` | `timestamp`（轉成 ISO 8601） |
+
+舊格式中 `HUMD` 是 0–1.0 的小數，程式會自動乘以 100；`-99` 與 `X` 視為缺測並跳過。報告前建議先點「清空資料」，再點「載入氣象資料」，圖表上就不會混到示範讀數。
+
+---
+
 ## 檔案結構
 
 ```text
@@ -173,13 +224,15 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 │   ├── notify.js               Webhook 狀態機
 │   ├── auth.js                 寫入端點 Token 檢查
 │   ├── export.js               CSV 序列化
-│   └── demo.js                 示範資料產生器
+│   ├── demo.js                 示範資料產生器
+│   └── cwa.js                  中央氣象署資料轉換
 ├── public/
 │   ├── index.html              儀表板頁面
 │   ├── styles.css              版面、色彩、波形與動畫
 │   └── app.js                  資料抓取、Canvas 圖表、互動
 ├── scripts/
 │   ├── seed.mjs                批次寫入示範紀錄（本機 / 遠端皆可）
+│   ├── import-cwa.mjs          從中央氣象署匯入真實觀測資料
 │   └── check-config.mjs        部署前檢查 D1 database_id
 ├── test/
 │   ├── core.test.mjs           核心邏輯單元測試
@@ -245,6 +298,7 @@ npx wrangler secret put API_TOKEN
 npx wrangler secret put ALERT_WEBHOOK_URL
 npx wrangler secret put ALERT_WEBHOOK_TOKEN
 npx wrangler secret put ALERT_WEBHOOK_RESOLVE
+npx wrangler secret put CWA_API_KEY
 ```
 
 5. 套用遠端 migration 後部署（`npm run deploy` 會先自動執行 `config:check`）：
@@ -268,6 +322,7 @@ curl -X POST https://<your-worker>.workers.dev/api/telemetry `
   -d '{"device":"sensor-a1","metric":"temperature","value":32.5,"unit":"C"}'
 
 curl -X POST https://<your-worker>.workers.dev/api/demo
+curl -X POST https://<your-worker>.workers.dev/api/import/cwa
 curl "https://<your-worker>.workers.dev/api/readings?device=sensor-a1&limit=10"
 curl https://<your-worker>.workers.dev/api/summary
 curl -o telemetry.csv "https://<your-worker>.workers.dev/api/export?format=csv"
@@ -301,6 +356,7 @@ node scripts\seed.mjs http://localhost:8787 40
 - [ ] 有設定 `API_TOKEN` 時，沒有 Token 的寫入要求回傳 401
 - [ ] 同一條告警只觸發一次 Webhook，解除後再觸發可再次通知
 - [ ] `GET /api/export` 下載的 CSV 內容與篩選條件相符
+- [ ] 設定 `CWA_API_KEY` 後，`POST /api/import/cwa` 可寫入 `cwa-` 前綴的測站資料
 - [ ] `npm test` 全部通過
 - [ ] `npm run config:check` 在填入真實 `database_id` 後通過
 

@@ -5,6 +5,7 @@ import { requiresToken, hasValidToken } from '../src/auth.js';
 import { aggregateReadings } from '../src/aggregate.js';
 import { syncAlertState } from '../src/notify.js';
 import { toCsv } from '../src/export.js';
+import { cwaUrl, toReadings } from '../src/cwa.js';
 
 const HEADERS = {
   'content-type': 'application/json; charset=utf-8',
@@ -131,6 +132,30 @@ async function handleApi(request, env, url) {
     await insertReadings(db, [reading]);
     await notifyAlerts(db, env);
     return json({ ok: true, accepted: 1, reading, total: await countReadings(db) }, 201);
+  }
+
+  if (path === '/api/import/cwa' && method === 'POST') {
+    if (!env.CWA_API_KEY) {
+      return fail(503, 'CWA_NOT_CONFIGURED', '尚未設定 CWA_API_KEY');
+    }
+
+    let payload;
+    try {
+      const response = await fetch(cwaUrl(env.CWA_API_KEY, env.CWA_STATIONS ?? ''));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      payload = await response.json();
+    } catch (error) {
+      return fail(502, 'CWA_FETCH_FAILED', `無法取得中央氣象署資料：${error.message}`);
+    }
+
+    const readings = toReadings(payload, { limit: 24 }).map((reading) => normalizeReading(reading));
+    if (readings.length === 0) {
+      return fail(502, 'CWA_EMPTY', '中央氣象署資料沒有可用的溫度或濕度數值');
+    }
+
+    await insertReadings(db, readings);
+    await notifyAlerts(db, env);
+    return json({ ok: true, accepted: readings.length, total: await countReadings(db) }, 201);
   }
 
   if (path === '/api/readings' && method === 'GET') {
