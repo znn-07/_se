@@ -4,7 +4,7 @@ import { requiresToken, hasValidToken } from '../src/auth.js';
 import { aggregateReadings } from '../src/aggregate.js';
 import { syncAlertState } from '../src/notify.js';
 import { toCsv } from '../src/export.js';
-import { cwaUrl, toReadings } from '../src/cwa.js';
+import { cwaForecastUrl, cwaUrl, toForecastReadings, toReadings } from '../src/cwa.js';
 import { makeSimulatedReadings } from '../src/simulate.js';
 
 const HEADERS = {
@@ -41,6 +41,10 @@ function regionOf(body) {
   return typeof body?.region === 'string' ? body.region.trim().slice(0, 64) : '';
 }
 
+function cwaModeOf(body) {
+  return body?.mode === 'observation' ? 'observation' : 'forecast';
+}
+
 function regionParam(url) {
   return url.searchParams.get('region')?.trim().slice(0, 64) ?? '';
 }
@@ -52,28 +56,32 @@ function limitOf(value, fallback, max) {
 }
 
 async function insertReadings(db, readings) {
-  const statement = db.prepare(
-    'INSERT OR IGNORE INTO readings (device, region, station, metric, value, unit, ts, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-  );
+  const sql = 'INSERT OR IGNORE INTO readings (device, region, station, metric, value, unit, ts, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+  const statements = readings.map((reading) => db.prepare(sql).bind(
+    reading.device,
+    reading.region ?? '',
+    reading.station ?? '',
+    reading.metric,
+    reading.value,
+    reading.unit,
+    reading.timestamp,
+    reading.receivedAt,
+  ));
 
-  for (const reading of readings) {
-    await statement
-      .bind(
-        reading.device,
-        reading.region ?? '',
-        reading.station ?? '',
-        reading.metric,
-        reading.value,
-        reading.unit,
-        reading.timestamp,
-        reading.receivedAt,
-      )
-      .run();
+  for (let offset = 0; offset < statements.length; offset += 500) {
+    const chunk = statements.slice(offset, offset + 500);
+    if (typeof db.batch === 'function') {
+      await db.batch(chunk);
+    } else {
+      for (const statement of chunk) await statement.run();
+    }
   }
 }
 
-async function fetchCwaPayload(env, region) {
-  const url = cwaUrl(env.CWA_API_KEY, region ? '' : (env.CWA_STATIONS ?? ''), region);
+async function fetchCwaPayload(env, region, mode = 'forecast') {
+  const url = mode === 'forecast'
+    ? cwaForecastUrl(env.CWA_API_KEY, region)
+    : cwaUrl(env.CWA_API_KEY, region ? '' : (env.CWA_STATIONS ?? ''), region);
   let lastError;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -94,9 +102,12 @@ async function fetchCwaPayload(env, region) {
   throw lastError;
 }
 
-async function importCwa(db, env, region = '', { notify = true } = {}) {
-  const payload = await fetchCwaPayload(env, region);
-  const readings = toReadings(payload, { limit: 2000, region }).map((reading) => normalizeReading(reading));
+async function importCwa(db, env, region = '', { notify = true, mode = 'forecast' } = {}) {
+  const payload = await fetchCwaPayload(env, region, mode);
+  const readings = (mode === 'forecast'
+    ? toForecastReadings(payload, { limit: 6000, region })
+    : toReadings(payload, { limit: 2000, region }))
+    .map((reading) => normalizeReading(reading));
   if (readings.length === 0) {
     throw new Error(region ? `${region} 沒有可用的溫度或濕度測站` : '沒有可用的溫度或濕度數值');
   }
@@ -200,10 +211,12 @@ async function handleApi(request, env, url) {
       return fail(503, 'CWA_NOT_CONFIGURED', '尚未設定 CWA_API_KEY');
     }
 
-    const region = regionOf(await readOptionalBody(request));
+    const body = await readOptionalBody(request);
+    const region = regionOf(body);
+    const mode = cwaModeOf(body);
 
     try {
-      const readings = await importCwa(db, env, region);
+      const readings = await importCwa(db, env, region, { mode });
       return json({ ok: true, accepted: readings.length, total: await countReadings(db) }, 201);
     } catch (error) {
       return fail(502, 'CWA_FETCH_FAILED', `無法取得中央氣象署資料：${error.message}`);
@@ -298,7 +311,7 @@ export default {
 
       if (!env.CWA_API_KEY) continue;
       try {
-        await importCwa(env.DB, env, region, { notify: false });
+        await importCwa(env.DB, env, region, { notify: false, mode: 'observation' });
       } catch (error) {
         console.error(`[telemetry-hub] CWA scheduled import failed (${region || 'all'})`, error);
       }

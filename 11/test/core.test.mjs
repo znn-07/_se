@@ -6,7 +6,7 @@ import { latestReadings, summarize } from '../src/stats.js';
 import { evaluateAlerts } from '../src/rules.js';
 import { csvCell, toCsv } from '../src/export.js';
 import { hasValidToken, requiresToken } from '../src/auth.js';
-import { cwaUrl, toReadings } from '../src/cwa.js';
+import { cwaForecastUrl, cwaUrl, toForecastReadings, toReadings } from '../src/cwa.js';
 import { aggregateReadings } from '../src/aggregate.js';
 import { makeSimulatedReadings } from '../src/simulate.js';
 
@@ -172,6 +172,73 @@ test('cwaUrl builds an authorized dataset request', () => {
   const countyUrl = new URL(cwaUrl('key', '', '臺北市'));
   assert.equal(countyUrl.searchParams.get('CountyName'), '臺北市');
   assert.equal(countyUrl.searchParams.has('StationId'), false);
+});
+
+test('cwaForecastUrl targets the F-D0047-089 three-day forecast dataset', () => {
+  const url = new URL(cwaForecastUrl('key', '金門縣'));
+  assert.equal(url.pathname, '/api/v1/rest/datastore/F-D0047-089');
+  assert.equal(url.searchParams.get('Authorization'), 'key');
+  assert.equal(url.searchParams.get('format'), 'JSON');
+  assert.equal(url.searchParams.get('LocationName'), '金門縣');
+  assert.equal(url.searchParams.has('ElementName'), false);
+});
+
+test('toForecastReadings converts three-hour T/RH points into time-series readings', () => {
+  const time = (hour, temperature, humidity) => ({
+    DataTime: `2026-11-27T${String(hour).padStart(2, '0')}:00:00+08:00`,
+    ElementValue: temperature === null ? [{ RelativeHumidity: humidity }] : [{ Temperature: temperature }],
+  });
+
+  const readings = toForecastReadings({
+    success: 'true',
+    records: {
+      Locations: [{
+        LocationsName: '台灣',
+        Location: [{
+          LocationName: '金門縣',
+          Geocode: '09020000',
+          WeatherElement: [
+            { ElementName: '溫度', Time: [time(0, '17', null), time(1, '18', null), time(3, '19', null)] },
+            { ElementName: '相對濕度', Time: [time(0, null, '91'), time(3, null, '89')] },
+          ],
+        }],
+      }],
+    },
+  }, { region: '金門縣' });
+
+  assert.deepEqual(readings, [
+    {
+      device: 'cwa-fx-09020000', region: '金門縣', station: '金門縣', metric: 'temperature',
+      value: 17, unit: 'C', timestamp: '2026-11-26T16:00:00.000Z',
+    },
+    {
+      device: 'cwa-fx-09020000', region: '金門縣', station: '金門縣', metric: 'humidity',
+      value: 91, unit: '%', timestamp: '2026-11-26T16:00:00.000Z',
+    },
+    {
+      device: 'cwa-fx-09020000', region: '金門縣', station: '金門縣', metric: 'temperature',
+      value: 19, unit: 'C', timestamp: '2026-11-26T19:00:00.000Z',
+    },
+    {
+      device: 'cwa-fx-09020000', region: '金門縣', station: '金門縣', metric: 'humidity',
+      value: 89, unit: '%', timestamp: '2026-11-26T19:00:00.000Z',
+    },
+  ]);
+});
+
+test('toForecastReadings filters counties and enforces the import limit', () => {
+  const element = {
+    ElementName: '溫度',
+    Time: [{ DataTime: '2026-11-27T00:00:00+08:00', ElementValue: [{ Temperature: '20' }] }],
+  };
+  const location = (name, code) => ({ LocationName: name, Geocode: code, WeatherElement: [element] });
+  const payload = {
+    success: 'true',
+    records: { Locations: [{ Location: [location('臺北市', '63000010'), location('高雄市', '64000010')] }] },
+  };
+
+  assert.equal(toForecastReadings(payload, { region: '高雄市' }).length, 1);
+  assert.equal(toForecastReadings(payload, { limit: 1 }).length, 1);
 });
 
 test('toReadings converts CWA stations into telemetry readings', () => {

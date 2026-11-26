@@ -41,8 +41,9 @@ const state = {
   tableCounty: '',
   tablePage: 1,
   autoSelectStation: true,
+  range: 'all',
   series: [],
-  seriesDevice: '',
+  seriesKey: null,
   live: true,
   busy: false,
   clockTimer: null,
@@ -55,6 +56,10 @@ function selectedRegion() {
 
 function selectedDevice() {
   return $('stationSelect').value;
+}
+
+function seriesKey() {
+  return `${selectedRegion()}|${selectedDevice()}`;
 }
 
 function metricOf(button) {
@@ -260,6 +265,14 @@ function renderStationOptions() {
 function renderMetricButtons() {
   for (const button of $('metricSwitch').querySelectorAll('button[data-metric]')) {
     const active = button.dataset.metric === state.metric;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+}
+
+function renderRangeButtons() {
+  for (const button of $('rangeSwitch').querySelectorAll('button[data-range]')) {
+    const active = button.dataset.range === state.range;
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', String(active));
   }
@@ -476,10 +489,19 @@ function drawChart() {
 
   const scoped = scopedStats();
   const pointsFor = (device, metric) => {
-    const source = state.seriesDevice === device ? state.series : (state.data?.recent ?? []);
+    const source = state.seriesKey === seriesKey() ? state.series : (state.data?.recent ?? []);
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
     return source
-      .filter((item) => item.device === device && item.metric === metric && Number.isFinite(Date.parse(item.timestamp)))
-      .slice(0, 40)
+      .filter((item) => item.device === device && item.metric === metric)
+      .filter((item) => {
+        const time = Date.parse(item.timestamp);
+        if (!Number.isFinite(time)) return false;
+        if (state.range === '24h') return time >= now - day && time <= now;
+        if (state.range === 'future') return time >= now - day && time <= now + 3 * day;
+        return true;
+      })
+      .slice(0, 400)
       .reverse();
   };
   const alertFor = (item) => {
@@ -670,8 +692,9 @@ function render() {
 
   renderKpis(data);
   renderStationOptions();
-  if (selectedDevice() !== state.seriesDevice) loadSeries();
+  if (state.seriesKey !== seriesKey()) loadSeries();
   renderMetricButtons();
+  renderRangeButtons();
 
   const scoped = scopedStats();
   const series = state.metric === ALL_METRIC
@@ -696,6 +719,7 @@ async function refresh(announce = false) {
     if (!data.ok) throw new Error(data.message || 'API 回傳失敗');
 
     state.data = data;
+    state.seriesKey = null;
     render();
     clearError();
     if (announce) showToast('資料已更新');
@@ -707,19 +731,21 @@ async function refresh(announce = false) {
 }
 
 async function loadSeries() {
+  const key = seriesKey();
   const device = selectedDevice();
-  state.seriesDevice = device;
-  if (!device) {
-    state.series = [];
-    return;
-  }
+  const region = selectedRegion();
+  state.seriesKey = key;
+
+  const params = new URLSearchParams({ limit: '400' });
+  if (device) params.set('device', device);
+  if (region) params.set('region', region);
 
   try {
-    const response = await fetch(`/api/readings?device=${encodeURIComponent(device)}&limit=40`, { cache: 'no-store' });
+    const response = await fetch(`/api/readings?${params}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const body = await response.json();
     if (!body.ok) throw new Error(body.message || '序列讀取失敗');
-    if (state.seriesDevice !== device) return;
+    if (state.seriesKey !== key) return;
     state.series = body.readings ?? [];
   } catch (error) {
     state.series = [];
@@ -740,9 +766,10 @@ async function loadCwa() {
     const result = await post('/api/import/cwa', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ region }),
+      body: JSON.stringify({ region, mode: 'forecast' }),
     });
-    showToast(`已載入 ${region} ${result.accepted} 筆中央氣象署觀測資料`);
+    state.range = 'future';
+    showToast(`已載入 ${region || '全台灣'} 未來 3 天逐 3 小時預報 ${result.accepted} 筆`);
     await refresh();
   } catch (error) {
     showToast(`載入失敗：${error.message}`, true);
@@ -772,7 +799,7 @@ async function reset() {
     state.metric = ALL_METRIC;
     state.tablePage = 1;
     state.series = [];
-    state.seriesDevice = '';
+    state.seriesKey = null;
     $('stationSelect').value = '';
     await refresh();
     showToast('已清空所有紀錄');
@@ -819,6 +846,12 @@ function init() {
     const button = event.target.closest('button[data-metric]');
     if (!button) return;
     state.metric = button.dataset.metric;
+    render();
+  });
+  $('rangeSwitch').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-range]');
+    if (!button) return;
+    state.range = button.dataset.range;
     render();
   });
   $('tableSearch').addEventListener('input', (event) => {

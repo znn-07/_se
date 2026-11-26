@@ -111,6 +111,11 @@
             <h2>波形監測</h2>
           </div>
           <div class="panel__tools">
+            <div class="range-switch" id="rangeSwitch" role="group" aria-label="波形時間範圍">
+              <button class="chip" type="button" data-range="24h">過去 24 小時</button>
+              <button class="chip" type="button" data-range="future">未來 3 天</button>
+              <button class="chip" type="button" data-range="all">全部歷史</button>
+            </div>
             <button class="icon-btn" id="refreshBtn" type="button" title="立即重新整理" aria-label="立即重新整理">
               <svg viewBox="0 0 20 20" fill="none"><path d="M16 8a6 6 0 1 0 1 4M16 3v5h-5" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
@@ -225,7 +230,7 @@
           <div class="endpoint-list">
             <div class="endpoint"><span>POST</span><code>/api/telemetry</code><em>上傳單筆或批次量測</em></div>
             <div class="endpoint"><span>GET</span><code>/api/summary</code><em>統計、告警、規則與最近紀錄</em></div>
-            <div class="endpoint"><span>POST</span><code>/api/import/cwa</code><em>載入中央氣象署觀測資料</em></div>
+            <div class="endpoint"><span>POST</span><code>/api/import/cwa</code><em>載入中央氣象署未來 3 天逐 3 小時預報</em></div>
             <div class="endpoint"><span>POST</span><code>/api/simulate</code><em>寫入溫度／濕度／電壓／訊號模擬讀數</em></div>
             <div class="endpoint"><span>GET</span><code>/api/health</code><em>健康檢查</em></div>
           </div>

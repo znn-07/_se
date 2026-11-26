@@ -18,10 +18,10 @@ TELEMETRY HUB 是一套部署在 **Cloudflare Workers** 上的輕量級遙測平
 - **持久化**：資料寫入 D1（SQLite）的 `readings` 資料表，不受 Worker 重啟影響。
 - **即時統計**：依 `device + metric` 計算最新值、最小值、最大值、平均值與樣本數。
 - **告警規則**：以 Threshold 規則判斷異常，在告警控制台顯示裝置、數值與時間。
-- **視覺化儀表板**：波形控制列用「縣市＋測站」兩層連動下拉與五個精簡指標按鈕（全部四線、temperature、humidity、voltage、rssi）切換；Canvas 可畫雙 Y 軸或四線同圖。
+- **視覺化儀表板**：波形控制列用「縣市＋測站」兩層連動下拉與五個精簡指標按鈕（全部四線、temperature、humidity、voltage、rssi）切換；波形右上角可用「過去 24 小時／未來 3 天／全部歷史」快速過濾，Canvas 可畫雙 Y 軸或四線同圖。
 - **單一測站優先**：進入頁面或切換縣市時，自動選定該縣市的第一個測站（優先排列具備完整四項指標者），避免不同設備的數值混在同一條線上；仍可手動改選「全部測站」。
 - **表格操作**：裝置狀態表支援關鍵字搜尋、縣市篩選、每頁 10 筆分頁；「範圍」欄以 Bullet Gauge 顯示固定物理量程、歷史波動區間與最新值圓點；點擊列會連動波形並捲動定位。
-- **真實氣象資料**：可從中央氣象署 Open Data API 匯入觀測值，device 以 `cwa-<測站編號>` 表示，並依波形控制列的縣市下拉選單載入該地區測站；硬體上傳流程完全不變。
+- **真實氣象資料**：「載入氣象資料」預設抓取中央氣象署 `F-D0047-089`（全台灣／指定縣市未來 3 天逐 3 小時預報），解析溫度 `T` 與相對濕度 `RH` 的多個預報時間點，device 以 `cwa-fx-<Geocode>` 表示；定時 Cron 仍使用即時觀測 `O-A0001-001`（`cwa-<測站編號>`）。硬體上傳流程完全不變。
 - **定時更新**：Worker Cron 每 10 分鐘自動抓取氣象署觀測，同時以同一台 `sensor-a2` 寫入溫度／濕度／電壓／訊號四項模擬讀數（每分鐘取樣，每次 6 個時間點 × 4 指標 = 24 筆）。
 - **地區欄位**：每筆量測可選填 `region`，會顯示在裝置表、事件流與 CSV 匯出中；波形控制列與表格篩選器可選「全部縣市」或 22 個台灣縣市。
 - **去重複**：同一 `device + metric + 觀測時間` 只保留一筆，定時抓取不會重複塞入同一小時的資料。
@@ -71,10 +71,10 @@ flowchart LR
 資料流：
 
 1. 裝置送出量測到 `POST /api/telemetry`；Worker 驗證欄位、補上 `received_at` 後寫入 D1。
-2. 瀏覽器每 3 秒呼叫 `GET /api/summary`，一次取得統計、告警、規則、最近 60 筆與總數；切換測站時另呼叫 `GET /api/readings?device=<device>&limit=40` 取得該測站自己的序列，避免低頻 CWA 測站被全域最近 60 筆擠出波形。
+2. 瀏覽器每 3 秒呼叫 `GET /api/summary`，一次取得統計、告警、規則、最近 60 筆與總數；同時呼叫 `GET /api/readings?limit=400`（可加 `device`、`region`）取得目前測站/地區自己的序列，避免低頻 CWA 測站被全域最近 60 筆擠出波形。波形右上角可再依「過去 24 小時／未來 3 天／全部歷史」過濾。
 3. `src/rules.js` 比對最新值與 Threshold；異常項目顯示在告警控制台。
 4. 告警狀態由 `src/notify.js` 寫回 `alert_state`；狀態改變時才發出 Webhook。
-5. Worker Cron 每 10 分鐘呼叫 `scheduled()`，先以同一台 `sensor-a2` 寫入四項模擬讀數，再匯入氣象署觀測；即使沒設定 `CWA_API_KEY`，四條模擬波形仍會持續累積。
+5. Worker Cron 每 10 分鐘呼叫 `scheduled()`，先以同一台 `sensor-a2` 寫入四項模擬讀數，再以 `mode=observation` 匯入氣象署即時觀測；手動「載入氣象資料」則用 `mode=forecast`（預設）一次寫入未來 3 天序列。即使沒設定 `CWA_API_KEY`，四條模擬波形仍會持續累積。
 
 ---
 
@@ -121,7 +121,7 @@ flowchart LR
 | --- | --- | --- |
 | `GET` | `/api/health` | 健康檢查，回傳 `{"ok":true,"service":"telemetry-hub"}` |
 | `POST` | `/api/telemetry` | 上傳單筆或批次量測 |
-| `POST` | `/api/import/cwa` | 從中央氣象署拉取觀測資料並寫入（需 `CWA_API_KEY`），可在 body 傳 `{ "region": "高雄市" }` 只載入該縣市 |
+| `POST` | `/api/import/cwa` | 拉取 `F-D0047-089` 未來 3 天逐 3 小時 T/RH 預報並寫入（需 `CWA_API_KEY`）；body 可傳 `{ "region": "高雄市", "mode": "forecast" }`，`mode: "observation"` 則回到即時觀測 |
 | `POST` | `/api/simulate` | 測試用：寫入 24 筆 `sensor-a2` 模擬讀數（6 個時間點 × 溫度／濕度／電壓／訊號），可在 body 傳 `{ "region": "高雄市" }` |
 | `GET` | `/api/readings?device=&metric=&region=&limit=100` | 查詢最近量測（最多 500 筆） |
 | `GET` | `/api/stats?region=` | 各裝置 / 指標的統計摘要 |
@@ -205,8 +205,9 @@ CWA_API_KEY=CWA-你的授權碼
 
 ### 3. 載入資料
 
-- **最簡單**：先在波形監測控制列選擇台灣縣市，再點「資料入口」區塊的「載入氣象資料」，會呼叫 `POST /api/import/cwa` 並只載入該縣市的**所有測站**（例如金門縣的金門、烈嶼等站）；裝置表會列出「縣市／測站（含鄉鎮）／測量日期」，事件流與告警也附上日期，CSV 另有 `station` 欄；不是只抓單一站。
-- **自動累積波形**：部署後 Worker Cron 每 10 分鐘抓一次氣象署，並同時為同一台 `sensor-a2` 寫入 6 組模擬讀數，每組都含溫度（C）、濕度（%）、電壓（V）、訊號（dBm）四個欄位；同一小時的重複氣象觀測會被忽略，模擬讀數則每分鐘一個時間點。本機 `.dev.vars` 可設 `CWA_REGIONS=金門縣,臺北市` 限制定時抓取範圍，未設定時抓全部測站，模擬讀數也會跟著寫入相同 `region`。
+- **最簡單**：先在波形監測控制列選擇台灣縣市，再點「資料入口」區塊的「載入氣象資料」，會呼叫 `POST /api/import/cwa`（`mode=forecast`）抓取 `F-D0047-089`，把該縣市未來 3 天的溫度與濕度（每 3 小時一點、約 24～32 個時間點）一次寫入 D1；畫面會自動切到「未來 3 天」並選定第一個 `cwa-fx-` 測站，不用等 Cron 慢慢累積。未選縣市時會抓全台灣，但受限於單次 6000 筆上限，建議先選縣市。
+- **波形時間範圍**：波形右上角三個按鈕只過濾 Canvas 的取點範圍（過去 24 小時／未來 3 天／全部歷史），指標統計與告警仍依全部資料計算，避免資料變多後圖表擠在一起。
+- **自動累積波形**：部署後 Worker Cron 每 10 分鐘抓一次氣象署**即時觀測**（`mode=observation`），並同時為同一台 `sensor-a2` 寫入 6 組模擬讀數，每組都含溫度（C）、濕度（%）、電壓（V）、訊號（dBm）四個欄位；同一測站、同一指標、同一時間的重複資料會被 D1 唯一索引忽略。本機 `.dev.vars` 可設 `CWA_REGIONS=金門縣,臺北市` 限制定時抓取範圍，未設定時抓全部測站，模擬讀數也會跟著寫入相同 `region`。
 - **上游容錯**：氣象署 API 單次請求逾時（15 秒）或回 5xx 時會自動重試一次，失敗訊息會直接顯示在頁面上。
 - **手動測試四線**：點「資料入口」的「注入模擬讀數」會呼叫 `POST /api/simulate` 立刻寫入 24 筆（6 個時間點 × 四項指標），波形區選「全部四線」即可看到同一台 `sensor-a2` 的溫度、濕度、電壓、訊號四條線（各自獨立量程，圖例顯示最新值與單位）；不需要再混用不同設備的資料。
 - **只看所選縣市**：切換波形控制列的縣市下拉時，儀表板會呼叫 `/api/summary?region=<縣市>`，KPI、波形、告警、事件流與裝置表都只顯示該縣市；「匯出 CSV」也只匯出該縣市。
@@ -217,26 +218,35 @@ CWA_API_KEY=CWA-你的授權碼
 npm run import:cwa -- --clear
 ```
 
-若只要特定測站，可設 `CWA_STATIONS=466920,466990`（逗號分隔的測站編號）；此限制只在未指定縣市時生效。
+若 Cron 的即時觀測只要特定測站，可設 `CWA_STATIONS=466920,466990`（逗號分隔的測站編號）；此限制只在未指定縣市時生效，不影響手動預報匯入。
 
-API 也可直接指定縣市：
+API 也可直接指定縣市與模式：
 
 ```json
-{ "region": "高雄市" }
+{ "region": "高雄市", "mode": "forecast" }
+```
+
+```json
+{ "region": "金門縣", "mode": "observation" }
 ```
 
 ### 4. 資料對照
 
 | CWA 欄位 | Telemetry HUB 欄位 |
 | --- | --- |
-| `StationId` | `device = cwa-<測站編號>` |
-| `StationName` + `GeoInfo.TownName` | `station = 測站名稱（鄉鎮）`；`region = 測站所在地區`，若指定縣市則 `region = 所選縣市` |
-| `GeoInfo.CountyName` | 依所選縣市篩選測站 |
-| `WeatherElement.AirTemperature` | `metric = temperature`，單位 `C` |
-| `WeatherElement.RelativeHumidity` | `metric = humidity`，單位 `%` |
-| `ObsTime.DateTime` | `timestamp`（轉成 ISO 8601），裝置表「測量日期」與事件流日期取 UTC 當天 |
+| 觀測 `StationId` | `device = cwa-<測站編號>` |
+| 觀測 `StationName` + `GeoInfo.TownName` | `station = 測站名稱（鄉鎮）`；`region = 測站所在地區`，若指定縣市則 `region = 所選縣市` |
+| 觀測 `GeoInfo.CountyName` | 依所選縣市篩選測站 |
+| 觀測 `WeatherElement.AirTemperature` | `metric = temperature`，單位 `C` |
+| 觀測 `WeatherElement.RelativeHumidity` | `metric = humidity`，單位 `%` |
+| 觀測 `ObsTime.DateTime` | `timestamp`（轉成 ISO 8601），裝置表「測量日期」與事件流日期取 UTC 當天 |
+| 預報 `Geocode` | `device = cwa-fx-<Geocode>`，與即時觀測測站分開，不會互相覆蓋 |
+| 預報 `LocationName` / `TownName` | `region = 縣市`；`station = 鄉鎮` 或 `縣市（鄉鎮）` |
+| 預報 `WeatherElement.溫度` → `ElementValue.Temperature` | `metric = temperature`，單位 `C` |
+| 預報 `WeatherElement.相對濕度` → `ElementValue.RelativeHumidity` | `metric = humidity`，單位 `%` |
+| 預報 `Time.DataTime` / `StartTime` | `timestamp`；只取當地時間 00/03/06/.../21 的逐 3 小時點，轉成 ISO 8601 |
 
-舊格式中 `HUMD` 是 0–1.0 的小數，程式會自動乘以 100；`-99` 與 `X` 視為缺測並跳過。同一測站、同一指標、同一觀測時間只會保留一筆；溫度與濕度可由 CWA 或 Cron 模擬補充，電壓與訊號則由 Cron 模擬產生。
+觀測舊格式中 `HUMD` 是 0–1.0 的小數，程式會自動乘以 100；`-99` 與 `X` 視為缺測並跳過。預報與觀測都以同一組唯一索引 `device + metric + ts` 去重，重複按「載入氣象資料」不會長出第二筆相同時間點；溫度與濕度可由 CWA 或 Cron 模擬補充，電壓與訊號則由 Cron 模擬產生。
 
 ---
 
@@ -400,9 +410,11 @@ curl -X POST https://telemetry-hub.fieldnotebook.workers.dev/api/telemetry `
 - [ ] 有設定 `API_TOKEN` 時，沒有 Token 的寫入要求回傳 401
 - [ ] 同一條告警只觸發一次 Webhook，解除後再觸發可再次通知
 - [ ] `GET /api/export` 下載的 CSV 內容與篩選條件相符
-- [ ] 設定 `CWA_API_KEY` 後，`POST /api/import/cwa` 可寫入 `cwa-` 前綴的測站資料與 `region`
+- [ ] 設定 `CWA_API_KEY` 後，`POST /api/import/cwa` 可寫入 `cwa-fx-<Geocode>` 的預報序列；帶 `mode: observation` 才寫入 `cwa-<測站編號>` 的即時觀測
 - [ ] 部署後等待一個 Cron 週期，`GET /api/readings?metric=temperature`、`?metric=humidity`、`?metric=voltage` 與 `?metric=signal` 都會出現 `sensor-a2` 的模擬讀數
-- [ ] 點「載入氣象資料」與「注入模擬讀數」後，選「全部四線」可看到同一台 `sensor-a2` 的四條波形與圖例
+- [ ] 點「載入氣象資料」後，選 `cwa-fx-` 測站可立刻看到連續的溫度／濕度波形；重複載入不會增加相同時間點的筆數
+- [ ] 波形右上角的「過去 24 小時／未來 3 天／全部歷史」會過濾 Canvas，五個指標按鈕仍可切換波形
+- [ ] 點「注入模擬讀數」後，選「全部四線」可看到同一台 `sensor-a2` 的四條波形與圖例
 - [ ] 進入頁面與切換縣市會自動選定第一個測站，波形控制列的五個指標按鈕可切換波形
 - [ ] 裝置表搜尋、縣市篩選與分頁正常，點列後下拉與指標連動並捲到波形圖
 - [ ] 範圍刻度條以固定量程計算，溫度／濕度／電壓／訊號各有正確顏色與最新值圓點
@@ -418,5 +430,6 @@ curl -X POST https://telemetry-hub.fieldnotebook.workers.dev/api/telemetry `
 - Webhook 目前為 fire-and-forget 的單次 POST，沒有重試佇列。
 - `GET /api/export` 單次最多 10000 筆，更大的資料集應改成分頁或 Cursor。
 - 即時更新採用 3 秒輪詢，高頻場景可改用 WebSocket / SSE。
+- 手動預報匯入單次上限 6000 筆；未選縣市時會抓全台灣，可能提前截斷，建議先選縣市再按「載入氣象資料」。
 - 模擬的四項指標都是 Cron 用時間函數加隨機擾動產生的示範資料，不是真實硬體量測；電壓與訊號門檻規則的裝置固定為 `sensor-a2`，溫度與濕度門檻規則仍固定在 `sensor-a1`。
 - Bullet Gauge 的電壓量程固定為 3.0–4.2V，但目前示範電壓仍約 11–13V，圓點會落在最右端；若要讓電壓位置也有區辨度，需同步調整模擬電壓與 `volt-low` 門檻。

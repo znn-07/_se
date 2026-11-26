@@ -337,6 +337,10 @@ code { font-family: var(--font-mono); }
 
 .icon-btn:hover { color: var(--cyan); border-color: var(--cyan); transform: rotate(60deg); }
 
+.panel__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.range-switch { display: flex; flex-wrap: wrap; gap: 5px; }
+.range-switch .chip { padding: 7px 9px; font-size: 9px; white-space: nowrap; }
+
 .chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 16px 20px 4px; }
 
 .chip {
@@ -565,6 +569,7 @@ td.cell-metric { color: var(--amber); }
   .readouts > div:nth-child(3) { border-right: 0; }
   .readouts > div:nth-child(n+4) { border-top: 1px solid var(--line); }
   .panel__head { padding: 15px; }
+  .panel__tools { justify-content: flex-start; width: 100%; }
   .chips { padding: 13px 14px 2px; }
   .control-bar { padding: 12px 14px 2px; }
   .metric-switch { margin-left: 0; }

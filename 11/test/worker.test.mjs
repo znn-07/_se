@@ -47,6 +47,11 @@ function createMockD1() {
       .map(({ id, ...row }) => row);
   }
 
+  async function batch(statements) {
+    for (const statement of statements) await statement.run();
+    return [];
+  }
+
   function prepare(sql) {
     let binds = [];
     return {
@@ -66,6 +71,9 @@ function createMockD1() {
       },
       async run() {
         if (sql.startsWith('INSERT OR IGNORE INTO readings')) {
+          const duplicate = rows.some((row) => row.device === binds[0]
+            && row.metric === binds[3] && row.timestamp === binds[6]);
+          if (duplicate) return { success: true, meta: { changes: 0 } };
           rows.push({
             id: nextId++,
             device: binds[0],
@@ -101,7 +109,7 @@ function createMockD1() {
     };
   }
 
-  return { prepare };
+  return { prepare, batch };
 }
 
 function makeEnv(db) {
@@ -123,6 +131,37 @@ function post(path, body) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
+  };
+}
+
+function forecastPayload(regions = ['金門縣']) {
+  return {
+    success: 'true',
+    records: {
+      Locations: [{
+        Location: regions.map((region, index) => ({
+          LocationName: region,
+          Geocode: `0902000${index}`,
+          WeatherElement: [
+            {
+              ElementName: '溫度',
+              Time: [
+                { DataTime: '2026-11-27T00:00:00+08:00', ElementValue: [{ Temperature: '17' }] },
+                { DataTime: '2026-11-27T01:00:00+08:00', ElementValue: [{ Temperature: '18' }] },
+                { DataTime: '2026-11-27T03:00:00+08:00', ElementValue: [{ Temperature: '19' }] },
+              ],
+            },
+            {
+              ElementName: '相對濕度',
+              Time: [
+                { DataTime: '2026-11-27T00:00:00+08:00', ElementValue: [{ RelativeHumidity: '91' }] },
+                { DataTime: '2026-11-27T03:00:00+08:00', ElementValue: [{ RelativeHumidity: '89' }] },
+              ],
+            },
+          ],
+        })),
+      }],
+    },
   };
 }
 
@@ -323,35 +362,51 @@ test('webhook receives only alert transitions', async () => {
   }
 });
 
-test('CWA import endpoint requires configuration and stores real observations', async () => {
+test('CWA import endpoint requires configuration and stores a forecast time series by default', async () => {
   const missing = await call('/api/import/cwa', { method: 'POST' });
   assert.equal(missing.response.status, 503);
   assert.equal((await missing.response.json()).error, 'CWA_NOT_CONFIGURED');
 
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    success: 'true',
-    records: {
-      Station: [{
-        StationId: '466920',
-        StationName: '臺北',
-        ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
-        WeatherElement: { AirTemperature: '25.8', RelativeHumidity: '68.4' },
-      }],
-    },
-  }), { status: 200, headers: { 'content-type': 'application/json' } });
+  let requestedUrl = '';
+  globalThis.fetch = async (url) => {
+    requestedUrl = String(url);
+    return new Response(JSON.stringify(forecastPayload()), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+  };
 
   try {
     const imported = await call('/api/import/cwa', { method: 'POST' }, createMockD1(), {
       CWA_API_KEY: 'CWA-test',
     });
     assert.equal(imported.response.status, 201);
-    assert.deepEqual(await imported.response.json(), { ok: true, accepted: 2, total: 2 });
+    assert.deepEqual(await imported.response.json(), { ok: true, accepted: 4, total: 4 });
+    assert.equal(new URL(requestedUrl).pathname, '/api/v1/rest/datastore/F-D0047-089');
 
     const list = await call('/api/readings?limit=10', undefined, imported.db);
     const body = await list.response.json();
-    assert.ok(body.readings.every((item) => item.device === 'cwa-466920' && item.region === '臺北'));
-    assert.deepEqual(body.readings.map((item) => item.metric).sort(), ['humidity', 'temperature']);
+    assert.ok(body.readings.every((item) => item.device === 'cwa-fx-09020000'));
+    assert.deepEqual(body.readings.map((item) => item.metric).sort(), ['humidity', 'humidity', 'temperature', 'temperature']);
+    assert.equal(new Set(body.readings.map((item) => item.timestamp)).size, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('repeated CWA forecast imports do not duplicate station timestamps', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(forecastPayload()), {
+    status: 200, headers: { 'content-type': 'application/json' },
+  });
+
+  try {
+    const first = await call('/api/import/cwa', { method: 'POST' }, createMockD1(), { CWA_API_KEY: 'CWA-test' });
+    await call('/api/import/cwa', { method: 'POST' }, first.db, { CWA_API_KEY: 'CWA-test' });
+    const result = await first.response.json();
+    const list = await call('/api/readings?limit=100', undefined, first.db);
+    assert.equal(result.total, 4);
+    assert.equal((await list.response.json()).count, 4);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -363,16 +418,9 @@ test('CWA import retries a transient upstream failure', async () => {
   globalThis.fetch = async () => {
     attempts += 1;
     if (attempts === 1) return new Response('internal error', { status: 500 });
-    return new Response(JSON.stringify({
-      success: 'true',
-      records: {
-        Station: [{
-          StationId: 'C0W140', StationName: '金門', GeoInfo: { CountyName: '金門縣' },
-          ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
-          WeatherElement: { AirTemperature: '16.8', RelativeHumidity: '60' },
-        }],
-      },
-    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(forecastPayload()), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
   };
 
   try {
@@ -380,35 +428,21 @@ test('CWA import retries a transient upstream failure', async () => {
       CWA_API_KEY: 'CWA-test',
     });
     assert.equal(imported.response.status, 201);
-    assert.equal((await imported.response.json()).accepted, 2);
+    assert.equal((await imported.response.json()).accepted, 4);
     assert.equal(attempts, 2);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('CWA import endpoint loads stations from the selected region', async () => {
+test('CWA import endpoint loads forecast locations from the selected region', async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = '';
   globalThis.fetch = async (url) => {
     requestedUrl = String(url);
-    return new Response(JSON.stringify({
-      success: 'true',
-      records: {
-        Station: [
-          {
-            StationId: '466920', StationName: '臺北', GeoInfo: { CountyName: '臺北市' },
-            ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
-            WeatherElement: { AirTemperature: '25.8', RelativeHumidity: '68.4' },
-          },
-          {
-            StationId: 'C0V710', StationName: '苓雅', GeoInfo: { CountyName: '高雄市' },
-            ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
-            WeatherElement: { AirTemperature: '29.1', RelativeHumidity: '76' },
-          },
-        ],
-      },
-    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(forecastPayload(['臺北市', '高雄市'])), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
   };
 
   try {
@@ -419,13 +453,13 @@ test('CWA import endpoint loads stations from the selected region', async () => 
       { CWA_API_KEY: 'CWA-test' },
     );
     assert.equal(imported.response.status, 201);
-    assert.equal((await imported.response.json()).accepted, 2);
-    assert.equal(new URL(requestedUrl).searchParams.get('CountyName'), '高雄市');
+    assert.equal((await imported.response.json()).accepted, 4);
+    assert.equal(new URL(requestedUrl).searchParams.get('LocationName'), '高雄市');
 
     const list = await call('/api/readings?limit=10', undefined, imported.db);
     const body = await list.response.json();
-    assert.ok(body.readings.every((item) => item.device === 'cwa-C0V710'
-      && item.region === '高雄市' && item.station === '苓雅'));
+    assert.ok(body.readings.every((item) => item.device === 'cwa-fx-09020001'
+      && item.region === '高雄市' && item.station === '高雄市'));
   } finally {
     globalThis.fetch = originalFetch;
   }
