@@ -25,6 +25,8 @@ export function normalizeReading(input, now = new Date()) {
 
   const device = typeof input.device === 'string' ? input.device.trim() : '';
   const metric = typeof input.metric === 'string' ? input.metric.trim().toLowerCase() : '';
+  const region = typeof input.region === 'string' ? input.region.trim().slice(0, 64) : '';
+  const station = typeof input.station === 'string' ? input.station.trim().slice(0, 64) : '';
 
   if (!device || device.length > 64) {
     throw new ValidationError('device must be a non-empty string (max 64 chars)');
@@ -67,6 +69,8 @@ export function normalizeReading(input, now = new Date()) {
 
   return {
     device,
+    region,
+    station,
     metric,
     value,
     unit,

@@ -1,13 +1,110 @@
 const $ = (id) => document.getElementById(id);
 
+const ALL_METRIC = 'all';
+const METRIC_ORDER = ['temperature', 'humidity', 'voltage', 'signal'];
+const COUNTIES = [
+  '臺北市', '新北市', '桃園市', '臺中市', '臺南市', '高雄市',
+  '基隆市', '新竹市', '嘉義市',
+  '新竹縣', '苗栗縣', '彰化縣', '南投縣', '雲林縣', '嘉義縣',
+  '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣', '澎湖縣', '金門縣', '連江縣',
+];
+const PAGE_SIZE = 10;
+const MULTI_COLORS = {
+  temperature: '#ffb454',
+  humidity: '#5ce1d6',
+  voltage: '#a78bfa',
+  signal: '#ff8fa3',
+};
+const GAUGE_RANGES = {
+  temperature: { min: 0, max: 40 },
+  humidity: { min: 0, max: 100 },
+  voltage: { min: 3.0, max: 4.2 },
+  signal: { min: -110, max: -40 },
+};
+const GAUGE_TONES = {
+  cold: { color: '#38bdf8', soft: 'rgba(56, 189, 248, .28)' },
+  green: { color: '#34d399', soft: 'rgba(52, 211, 153, .28)' },
+  warm: { color: '#fb923c', soft: 'rgba(251, 146, 60, .30)' },
+  yellow: { color: '#fbbf24', soft: 'rgba(251, 191, 36, .30)' },
+  red: { color: '#fb7185', soft: 'rgba(251, 113, 133, .32)' },
+};
+const GAUGE_THRESHOLDS = {
+  humidity: { value: 70, margin: 10, high: true },
+  voltage: { value: 11.5, margin: 0.5, high: false },
+  signal: { value: -80, margin: 10, high: false },
+};
+
 const state = {
   data: null,
-  seriesKey: '',
+  metric: ALL_METRIC,
+  tableSearch: '',
+  tableCounty: '',
+  tablePage: 1,
+  autoSelectStation: true,
   live: true,
   busy: false,
   clockTimer: null,
   pollTimer: null,
 };
+
+function selectedRegion() {
+  return $('countySelect').value;
+}
+
+function selectedDevice() {
+  return $('stationSelect').value;
+}
+
+function metricOf(button) {
+  return button === 'rssi' ? 'signal' : button;
+}
+
+function buttonOf(metric) {
+  return metric === 'signal' ? 'rssi' : metric;
+}
+
+function gaugePercent(value, range) {
+  const percent = ((value - range.min) / (range.max - range.min)) * 100;
+  return Math.min(100, Math.max(0, percent));
+}
+
+function gaugeTone(metric, value) {
+  if (metric === 'temperature') {
+    if (value < 18) return GAUGE_TONES.cold;
+    if (value > 28) return GAUGE_TONES.warm;
+    return GAUGE_TONES.green;
+  }
+
+  const rule = GAUGE_THRESHOLDS[metric];
+  if (!rule) return GAUGE_TONES.green;
+  if (rule.high) {
+    if (value > rule.value) return GAUGE_TONES.red;
+    if (value > rule.value - rule.margin) return GAUGE_TONES.yellow;
+  } else {
+    if (value < rule.value) return GAUGE_TONES.red;
+    if (value < rule.value + rule.margin) return GAUGE_TONES.yellow;
+  }
+  return GAUGE_TONES.green;
+}
+
+function scopedStats() {
+  const region = selectedRegion();
+  const device = selectedDevice();
+  return (state.data?.stats ?? []).filter((item) =>
+    (!region || item.region === region) && (!device || item.device === device));
+}
+
+function syncExportLink() {
+  $('exportBtn').href = `/api/export?format=csv&region=${encodeURIComponent(selectedRegion())}`;
+}
+
+function populateCountySelects() {
+  for (const id of ['countySelect', 'tableCounty']) {
+    const select = $(id);
+    select.replaceChildren(new Option('全部縣市', ''));
+    for (const county of COUNTIES) select.add(new Option(county, county));
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -33,14 +130,14 @@ function utcParts(iso) {
   };
 }
 
+function measurementDate(iso) {
+  return utcParts(iso)?.date ?? '—';
+}
+
 const THEME_KEY = 'telemetry-hub-theme';
 
 function keyOf(device, metric) {
   return `${device}::${metric}`;
-}
-
-function currentSeries() {
-  return (state.data?.stats ?? []).find((item) => keyOf(item.device, item.metric) === state.seriesKey);
 }
 
 function chartColors() {
@@ -53,7 +150,9 @@ function chartColors() {
     fillBottom: read('--chart-fill-bottom', 'rgba(92, 225, 214, 0)'),
     point: read('--chart-point', '#5ce1d6'),
     last: read('--chart-last', '#ffb454'),
+    secondary: read('--chart-secondary', '#a78bfa'),
     threshold: read('--chart-threshold', 'rgba(255, 107, 107, .6)'),
+    anomaly: read('--chart-anomaly', '#ff6b6b'),
     axis: read('--chart-axis', 'rgba(120, 144, 158, .8)'),
   };
 }
@@ -89,7 +188,7 @@ function initTheme() {
       localStorage.setItem(THEME_KEY, next);
     } catch {}
     applyTheme(next);
-    drawChart(currentSeries());
+    drawChart();
   });
 }
 
@@ -130,36 +229,65 @@ function renderKpis(data) {
   $('heroUnit').textContent = latest ? `${latest.metric.toUpperCase()} / ${latest.unit}` : 'NO SIGNAL';
 }
 
-function renderChips(stats) {
-  const signature = stats.map((item) => keyOf(item.device, item.metric)).join('|');
-  if (signature === state.chipSignature) return;
+function renderStationOptions() {
+  const select = $('stationSelect');
+  const current = select.value;
+  const region = selectedRegion();
+  const devices = new Map();
 
-  state.chipSignature = signature;
-  const container = $('seriesChips');
-  container.replaceChildren();
+  for (const item of state.data?.stats ?? []) {
+    if (region && item.region !== region) continue;
+    const label = item.station && item.station !== item.device
+      ? `${item.station} · ${item.device}`
+      : (item.station || item.device);
+    if (!devices.has(item.device)) devices.set(item.device, { label, metrics: new Set() });
+    devices.get(item.device).metrics.add(item.metric);
+  }
 
-  for (const item of stats) {
-    const key = keyOf(item.device, item.metric);
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip';
-    chip.textContent = `${item.device} · ${item.metric}`;
-    chip.dataset.key = key;
-    chip.setAttribute('aria-pressed', 'false');
-    chip.addEventListener('click', () => {
-      state.seriesKey = key;
-      render();
-    });
-    container.append(chip);
+  const ordered = [...devices.entries()].sort((a, b) =>
+    b[1].metrics.size - a[1].metrics.size || a[0].localeCompare(b[0]));
+
+  select.replaceChildren(new Option('全部測站', ''));
+  for (const [device, { label }] of ordered) select.add(new Option(label, device));
+
+  const keepAll = current === '' && !state.autoSelectStation;
+  select.value = keepAll ? '' : (ordered.find(([device]) => device === current)?.[0] ?? ordered[0]?.[0] ?? '');
+  state.autoSelectStation = false;
+}
+
+function renderMetricButtons() {
+  for (const button of $('metricSwitch').querySelectorAll('button[data-metric]')) {
+    const active = button.dataset.metric === state.metric;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
   }
 }
 
 function renderReadouts(series) {
-  $('roLatest').textContent = series ? fmt(series.latest) : '--';
-  $('roMin').textContent = series ? fmt(series.min) : '--';
-  $('roMax').textContent = series ? fmt(series.max) : '--';
-  $('roAvg').textContent = series ? fmt(series.avg, 2) : '--';
-  $('roCount').textContent = series ? series.count : '--';
+  const all = state.metric === ALL_METRIC;
+  const samples = scopedStats().reduce((total, item) => total + (item.count ?? 0), 0);
+  $('roLatest').textContent = all || !series ? '--' : fmt(series.latest);
+  $('roMin').textContent = all || !series ? '--' : fmt(series.min);
+  $('roMax').textContent = all || !series ? '--' : fmt(series.max);
+  $('roAvg').textContent = all || !series ? '--' : fmt(series.avg, 2);
+  $('roCount').textContent = all ? samples : (series ? series.count : '--');
+}
+
+function renderLegend() {
+  const container = $('chartLegend');
+  const all = state.metric === ALL_METRIC;
+  container.hidden = !all;
+  container.replaceChildren();
+  if (!all) return;
+
+  for (const metric of METRIC_ORDER) {
+    const stat = scopedStats().find((item) => item.metric === metric);
+    if (!stat) continue;
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    item.innerHTML = `<i style="background:${MULTI_COLORS[metric]}"></i><b>${escapeHtml(metric)}</b><em>${fmt(stat.latest)} ${escapeHtml(stat.unit)}</em>`;
+    container.append(item);
+  }
 }
 
 function renderAlerts(alerts) {
@@ -183,10 +311,10 @@ function renderAlerts(alerts) {
       <span class="alert-item__title">${escapeHtml(alert.message)}</span>
       <span class="alert-item__tag">${escapeHtml(alert.id)}</span>
       <span class="alert-item__meta">
-        <span>${escapeHtml(alert.device)} / ${escapeHtml(alert.metric)}</span>
+        <span>${alert.region ? `${escapeHtml(alert.region)}${alert.station ? ` · ${escapeHtml(alert.station)}` : ''} · ` : ''}${escapeHtml(alert.device)} / ${escapeHtml(alert.metric)}</span>
         <span>VALUE <b>${fmt(alert.value)} ${escapeHtml(alert.unit)}</b></span>
         <span>LIMIT ${alert.operator} ${fmt(alert.threshold)}</span>
-        <span>${parts ? parts.time : '--:--'} UTC</span>
+        <span>${parts ? `${parts.date} ${parts.time}` : '--:--'} UTC</span>
       </span>`;
     container.append(item);
   }
@@ -209,41 +337,112 @@ function renderFeed(recent) {
     const row = document.createElement('div');
     row.className = 'feed-row';
     row.innerHTML = `
-      <time>${parts ? parts.time : '--:--'}</time>
-      <b><em>${escapeHtml(reading.device)}</em> / ${escapeHtml(reading.metric)}</b>
+      <time>${parts ? `${parts.date} <em>${parts.time}</em>` : '--:--'}</time>
+      <b><em>${escapeHtml(reading.station ? `${reading.region} · ${reading.station}` : `${reading.region ? `${reading.region} · ` : ''}${reading.device}`)}</em> / ${escapeHtml(reading.metric)}</b>
       <span>${fmt(reading.value)} ${escapeHtml(reading.unit)}</span>`;
     container.append(row);
   }
+}
+
+function focusSeries(item) {
+  const countySelect = $('countySelect');
+  const previousRegion = countySelect.value;
+  const region = item.region && [...countySelect.options].some((option) => option.value === item.region)
+    ? item.region
+    : '';
+
+  countySelect.value = region;
+  syncExportLink();
+  renderStationOptions();
+  $('stationSelect').value = item.device;
+  state.metric = buttonOf(item.metric);
+  render();
+  document.querySelector('.panel--trace').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (region !== previousRegion) refresh();
 }
 
 function renderTable(stats, alerts) {
   const body = $('deviceRows');
   body.replaceChildren();
 
-  for (const item of stats) {
+  const query = state.tableSearch.trim().toLowerCase();
+  const filtered = (stats ?? []).filter((item) => {
+    const text = [item.region, item.station, item.metric, item.device].join(' ').toLowerCase();
+    return (!query || text.includes(query)) && (!state.tableCounty || item.region === state.tableCounty);
+  });
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  state.tablePage = Math.min(Math.max(state.tablePage, 1), pages);
+  const pageItems = filtered.slice((state.tablePage - 1) * PAGE_SIZE, state.tablePage * PAGE_SIZE);
+
+  $('tableCount').textContent = `${filtered.length} / ${stats?.length ?? 0} 筆`;
+
+  for (const item of pageItems) {
     const alert = alerts.find((entry) => entry.device === item.device && entry.metric === item.metric);
-    const span = item.max - item.min;
-    const percent = span > 0 ? Math.min(100, Math.max(0, ((item.latest - item.min) / span) * 100)) : 100;
+    const range = GAUGE_RANGES[item.metric] ?? { min: item.min, max: item.max };
+    const tone = gaugeTone(item.metric, item.latest);
+    const bandLeft = gaugePercent(item.min, range);
+    const bandWidth = Math.max(0, gaugePercent(item.max, range) - bandLeft);
+    const dot = gaugePercent(item.latest, range);
+    const gaugeStyle = [
+      `--gauge-color:${tone.color}`,
+      `--gauge-soft:${tone.soft}`,
+      `--gauge-band-left:${bandLeft}%`,
+      `--gauge-band-width:${bandWidth}%`,
+      `--gauge-dot:${dot}%`,
+    ].join(';');
     const row = document.createElement('tr');
+    row.tabIndex = 0;
+    row.title = '點擊查看此測站與指標的波形';
     row.innerHTML = `
       <td class="cell-device">${escapeHtml(item.device)}</td>
+      <td class="cell-region">${escapeHtml(item.region || '—')}</td>
+      <td class="cell-place">${escapeHtml(item.station || '—')}</td>
       <td class="cell-metric">${escapeHtml(item.metric)}</td>
+      <td class="cell-date">${measurementDate(item.latestAt)}</td>
       <td>${fmt(item.latest)} ${escapeHtml(item.unit)}</td>
       <td>
-        <span class="range-cell">
-          <span>${fmt(item.min)}</span>
-          <span class="range-track"><i style="width:${percent}%"></i></span>
-          <span>${fmt(item.max)}</span>
+        <span class="gauge-cell" style="${gaugeStyle}">
+          <span class="gauge-meta"><span>${fmt(item.min)}</span><span>${fmt(item.max)}</span></span>
+          <span class="gauge-track">
+            <span class="gauge-band"${bandWidth > 0 ? '' : ' hidden'}></span>
+            <span class="gauge-dot"></span>
+          </span>
         </span>
       </td>
       <td>${fmt(item.avg, 2)}</td>
       <td>${item.count}</td>
       <td><span class="status-pill-table ${alert ? 'is-alert' : ''}">${alert ? 'ALERT' : 'NORMAL'}</span></td>`;
+    row.addEventListener('click', () => focusSeries(item));
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        focusSeries(item);
+      }
+    });
     body.append(row);
+  }
+
+  const pager = $('tablePagination');
+  pager.replaceChildren();
+  const info = document.createElement('span');
+  info.textContent = `第 ${state.tablePage} / ${pages} 頁`;
+  pager.append(info);
+
+  for (const [label, page, disabled] of [
+    ['上一頁', state.tablePage - 1, state.tablePage === 1],
+    ['下一頁', state.tablePage + 1, state.tablePage === pages],
+  ]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'page-btn';
+    button.dataset.page = String(page);
+    button.textContent = label;
+    button.disabled = disabled;
+    pager.append(button);
   }
 }
 
-function drawChart(series) {
+function drawChart() {
   const canvas = $('chart');
   const ctx = canvas.getContext('2d');
   const ratio = window.devicePixelRatio || 1;
@@ -273,12 +472,63 @@ function drawChart(series) {
     ctx.stroke();
   }
 
-  const points = state.data?.recent
-    .filter((item) => keyOf(item.device, item.metric) === state.seriesKey)
+  const scoped = scopedStats();
+  const pointsFor = (device, metric) => (state.data?.recent ?? [])
+    .filter((item) => item.device === device && item.metric === metric && Number.isFinite(Date.parse(item.timestamp)))
     .slice(0, 40)
-    .reverse() ?? [];
+    .reverse();
+  const alertFor = (item) => {
+    if (!item) return null;
+    const key = keyOf(item.device, item.metric);
+    return state.data?.alerts?.find((entry) => keyOf(entry.device, entry.metric) === key)
+      ?? state.data?.rules?.find((rule) => keyOf(rule.device, rule.metric) === key)
+      ?? null;
+  };
+  const bounds = (points, threshold) => {
+    const values = points.map((item) => item.value);
+    if (Number.isFinite(threshold)) values.push(threshold);
+    if (values.length === 0) return { min: 0, max: 1 };
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (min === max) { min -= 1; max += 1; }
+    const padding = (max - min) * 0.18;
+    return { min: min - padding, max: max + padding };
+  };
+  const violates = (value, alert) => {
+    if (!alert) return false;
+    if (alert.operator === '>') return value > alert.threshold;
+    if (alert.operator === '>=') return value >= alert.threshold;
+    if (alert.operator === '<') return value < alert.threshold;
+    if (alert.operator === '<=') return value <= alert.threshold;
+    return false;
+  };
 
-  if (points.length === 0) {
+  const allMode = state.metric === ALL_METRIC;
+  const primary = allMode ? null : (scoped.find((item) => item.metric === metricOf(state.metric)) ?? null);
+  const paired = primary ? scoped.find((item) => {
+    if (item.device !== primary.device || item.metric === primary.metric) return false;
+    if (primary.metric === 'temperature') return item.metric === 'humidity';
+    if (primary.metric === 'humidity') return item.metric === 'temperature';
+    return true;
+  }) ?? null : null;
+
+  const selected = allMode
+    ? METRIC_ORDER.map((metric) => scoped.find((item) => item.metric === metric)).filter(Boolean)
+    : [primary, paired].filter(Boolean);
+  const plotted = selected.map((item, index) => {
+    const points = pointsFor(item.device, item.metric);
+    const alert = alertFor(item);
+    return {
+      item,
+      points,
+      alert,
+      range: bounds(points, alert?.threshold),
+      stroke: allMode ? (MULTI_COLORS[item.metric] ?? colors.line) : (index === 0 ? colors.line : colors.secondary),
+    };
+  });
+  const allPoints = plotted.flatMap((entry) => entry.points);
+
+  if (allPoints.length === 0) {
     ctx.strokeStyle = colors.axis;
     ctx.setLineDash([4, 6]);
     ctx.beginPath();
@@ -293,24 +543,21 @@ function drawChart(series) {
     return;
   }
 
-  const values = points.map((item) => item.value);
-  let min = Math.min(...values);
-  let max = Math.max(...values);
-  if (min === max) { min -= 1; max += 1; }
-  const padding = (max - min) * 0.18;
-  min -= padding;
-  max += padding;
+  const times = allPoints.map((item) => Date.parse(item.timestamp));
+  const start = Math.min(...times);
+  const end = Math.max(...times);
+  const span = end - start || 1;
 
-  const plotLeft = 12;
-  const plotRight = width - 40;
-  const plotTop = 18;
-  const plotBottom = height - 26;
-  const xOf = (index) => plotLeft + (index / Math.max(1, points.length - 1)) * (plotRight - plotLeft);
-  const yOf = (value) => plotBottom - ((value - min) / (max - min)) * (plotBottom - plotTop);
+  const plotLeft = 46;
+  const plotRight = width - 46;
+  const plotTop = 32;
+  const plotBottom = height - 28;
+  const xOf = (iso) => plotLeft + ((Date.parse(iso) - start) / span) * (plotRight - plotLeft);
+  const yOf = (value, range) => plotBottom - ((value - range.min) / (range.max - range.min)) * (plotBottom - plotTop);
 
-  const alert = state.data?.alerts?.find((entry) => keyOf(entry.device, entry.metric) === state.seriesKey);
-  if (alert) {
-    const y = yOf(alert.threshold);
+  const drawLimit = (alert, range, align) => {
+    if (!alert) return;
+    const y = yOf(alert.threshold, range);
     ctx.strokeStyle = colors.threshold;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
@@ -320,51 +567,96 @@ function drawChart(series) {
     ctx.setLineDash([]);
     ctx.fillStyle = colors.threshold;
     ctx.font = '9px "IBM Plex Mono", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`LIMIT ${fmt(alert.threshold)}`, plotRight, y - 6);
+    ctx.textAlign = align;
+    ctx.fillText(`LIMIT ${fmt(alert.threshold)}`, align === 'left' ? plotLeft : plotRight, y - 6);
+  };
+  if (!allMode) {
+    if (plotted[0]) drawLimit(plotted[0].alert, plotted[0].range, 'right');
+    if (plotted[1]) drawLimit(plotted[1].alert, plotted[1].range, 'left');
   }
 
-  const gradient = ctx.createLinearGradient(0, plotTop, 0, plotBottom);
-  gradient.addColorStop(0, colors.fillTop);
-  gradient.addColorStop(1, colors.fillBottom);
-
-  ctx.beginPath();
-  ctx.moveTo(xOf(0), plotBottom);
-  points.forEach((item, index) => ctx.lineTo(xOf(index), yOf(item.value)));
-  ctx.lineTo(xOf(points.length - 1), plotBottom);
-  ctx.closePath();
-  ctx.fillStyle = gradient;
-  ctx.fill();
-
-  ctx.beginPath();
-  points.forEach((item, index) => {
-    const x = xOf(index);
-    const y = yOf(item.value);
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = colors.line;
-  ctx.lineWidth = 2;
-  ctx.shadowColor = colors.line;
-  ctx.shadowBlur = 12;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  points.forEach((item, index) => {
+  const drawLine = (points, range, stroke, alert, fill) => {
+    if (!points.length) return;
+    if (fill) {
+      const gradient = ctx.createLinearGradient(0, plotTop, 0, plotBottom);
+      gradient.addColorStop(0, fill[0]);
+      gradient.addColorStop(1, fill[1]);
+      ctx.beginPath();
+      ctx.moveTo(xOf(points[0].timestamp), plotBottom);
+      points.forEach((item) => ctx.lineTo(xOf(item.timestamp), yOf(item.value, range)));
+      ctx.lineTo(xOf(points[points.length - 1].timestamp), plotBottom);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    }
     ctx.beginPath();
-    ctx.arc(xOf(index), yOf(item.value), index === points.length - 1 ? 3.5 : 2, 0, Math.PI * 2);
-    ctx.fillStyle = index === points.length - 1 ? colors.last : colors.point;
-    ctx.fill();
+    points.forEach((item, index) => {
+      const x = xOf(item.timestamp);
+      const y = yOf(item.value, range);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = stroke;
+    ctx.shadowBlur = fill ? 12 : 0;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    points.forEach((item, index) => {
+      const last = index === points.length - 1;
+      const x = xOf(item.timestamp);
+      const y = yOf(item.value, range);
+      ctx.beginPath();
+      ctx.arc(x, y, last ? 3.5 : 2, 0, Math.PI * 2);
+      ctx.fillStyle = last ? colors.last : stroke;
+      ctx.fill();
+      if (violates(item.value, alert)) {
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.strokeStyle = colors.anomaly;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+  };
+  plotted.forEach((entry, index) => {
+    const fill = !allMode && index === 0 ? [colors.fillTop, colors.fillBottom] : null;
+    drawLine(entry.points, entry.range, entry.stroke, entry.alert, fill);
   });
 
+  if (!allMode && plotted[0]) {
+    const first = plotted[0];
+    ctx.font = '9px "IBM Plex Mono", monospace';
+    ctx.fillStyle = colors.line;
+    ctx.textAlign = 'right';
+    ctx.fillText(fmt(first.range.max), plotLeft - 6, plotTop + 4);
+    ctx.fillText(fmt(first.range.min), plotLeft - 6, plotBottom + 3);
+    ctx.textAlign = 'left';
+    ctx.fillText(`${first.item.metric} ${first.item.unit}`, plotLeft, 14);
+
+    if (plotted[1]) {
+      const second = plotted[1];
+      ctx.fillStyle = colors.secondary;
+      ctx.textAlign = 'left';
+      ctx.fillText(fmt(second.range.max), plotRight + 6, plotTop + 4);
+      ctx.fillText(fmt(second.range.min), plotRight + 6, plotBottom + 3);
+      ctx.textAlign = 'right';
+      ctx.fillText(`${second.item.metric} ${second.item.unit}`, plotRight, 14);
+    }
+  }
+
+  const axisTime = (ms) => {
+    const parts = utcParts(new Date(ms).toISOString());
+    return parts ? `${parts.date.slice(5)} ${parts.time}` : '';
+  };
   ctx.fillStyle = colors.axis;
   ctx.font = '9px "IBM Plex Mono", monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(fmt(max), plotRight + 6, plotTop + 4);
-  ctx.fillText(fmt(min), plotRight + 6, plotBottom + 3);
-  ctx.fillText(utcParts(points[0].timestamp)?.time ?? '', plotLeft, height - 6);
+  ctx.fillText(axisTime(start), plotLeft, height - 8);
+  ctx.textAlign = 'center';
+  ctx.fillText(axisTime(start + span / 2), (plotLeft + plotRight) / 2, height - 8);
   ctx.textAlign = 'right';
-  ctx.fillText(utcParts(points[points.length - 1].timestamp)?.time ?? '', plotRight, height - 6);
+  ctx.fillText(axisTime(end), plotRight, height - 8);
 }
 
 function render() {
@@ -372,21 +664,19 @@ function render() {
   if (!data) return;
 
   renderKpis(data);
-  renderChips(data.stats ?? []);
+  renderStationOptions();
+  renderMetricButtons();
 
-  const chips = $('seriesChips').querySelectorAll('.chip');
-  chips.forEach((chip) => {
-    const active = chip.dataset.key === state.seriesKey;
-    chip.classList.toggle('is-active', active);
-    chip.setAttribute('aria-pressed', String(active));
-  });
-
-  const series = currentSeries();
+  const scoped = scopedStats();
+  const series = state.metric === ALL_METRIC
+    ? null
+    : (scoped.find((item) => item.metric === metricOf(state.metric)) ?? null);
   renderReadouts(series);
+  renderLegend();
   renderAlerts(data.alerts ?? []);
   renderFeed(data.recent ?? []);
   renderTable(data.stats ?? [], data.alerts ?? []);
-  drawChart(series);
+  drawChart();
 }
 
 async function refresh(announce = false) {
@@ -394,17 +684,12 @@ async function refresh(announce = false) {
   state.busy = true;
 
   try {
-    const response = await fetch('/api/summary', { cache: 'no-store' });
+    const response = await fetch(`/api/summary?region=${encodeURIComponent(selectedRegion())}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (!data.ok) throw new Error(data.message || 'API 回傳失敗');
 
     state.data = data;
-    if (!state.seriesKey || !(data.stats ?? []).some((item) => keyOf(item.device, item.metric) === state.seriesKey)) {
-      state.seriesKey = data.stats?.[0] ? keyOf(data.stats[0].device, data.stats[0].metric) : '';
-      state.chipSignature = '';
-    }
-
     render();
     clearError();
     if (announce) showToast('資料已更新');
@@ -422,23 +707,33 @@ async function post(path, options = {}) {
   return body;
 }
 
-async function inject() {
-  try {
-    const result = await post('/api/demo', { method: 'POST' });
-    showToast(`已注入 ${result.reading.device} / ${result.reading.metric} = ${fmt(result.reading.value)}`);
-    await refresh();
-  } catch (error) {
-    showToast(`注入失敗：${error.message}`, true);
-  }
-}
-
 async function loadCwa() {
+  const region = selectedRegion();
   try {
-    const result = await post('/api/import/cwa', { method: 'POST' });
-    showToast(`已載入 ${result.accepted} 筆中央氣象署觀測資料`);
+    const result = await post('/api/import/cwa', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ region }),
+    });
+    showToast(`已載入 ${region} ${result.accepted} 筆中央氣象署觀測資料`);
     await refresh();
   } catch (error) {
     showToast(`載入失敗：${error.message}`, true);
+  }
+}
+
+async function injectSimulation() {
+  const region = selectedRegion();
+  try {
+    const result = await post('/api/simulate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ region }),
+    });
+    showToast(`已寫入 ${result.accepted} 筆四項模擬讀數`);
+    await refresh();
+  } catch (error) {
+    showToast(`注入失敗：${error.message}`, true);
   }
 }
 
@@ -447,8 +742,9 @@ async function reset() {
   try {
     await post('/api/readings', { method: 'DELETE' });
     state.data = null;
-    state.seriesKey = '';
-    state.chipSignature = '';
+    state.metric = ALL_METRIC;
+    state.tablePage = 1;
+    $('stationSelect').value = '';
     await refresh();
     showToast('已清空所有紀錄');
   } catch (error) {
@@ -478,14 +774,44 @@ function startClock() {
 }
 
 function init() {
-  $('injectBtn').addEventListener('click', inject);
+  populateCountySelects();
   $('cwaBtn').addEventListener('click', loadCwa);
+  $('simulateBtn').addEventListener('click', injectSimulation);
   $('resetBtn').addEventListener('click', reset);
   $('refreshBtn').addEventListener('click', () => refresh(true));
   $('pauseBtn').addEventListener('click', toggleLive);
-  window.addEventListener('resize', () => drawChart(currentSeries()));
+  $('countySelect').addEventListener('change', () => {
+    state.autoSelectStation = true;
+    syncExportLink();
+    refresh(true);
+  });
+  $('stationSelect').addEventListener('change', () => render());
+  $('metricSwitch').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-metric]');
+    if (!button) return;
+    state.metric = button.dataset.metric;
+    render();
+  });
+  $('tableSearch').addEventListener('input', (event) => {
+    state.tableSearch = event.target.value;
+    state.tablePage = 1;
+    render();
+  });
+  $('tableCounty').addEventListener('change', (event) => {
+    state.tableCounty = event.target.value;
+    state.tablePage = 1;
+    render();
+  });
+  $('tablePagination').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-page]');
+    if (!button || button.disabled) return;
+    state.tablePage = Number(button.dataset.page);
+    render();
+  });
+  window.addEventListener('resize', () => drawChart());
 
   initTheme();
+  syncExportLink();
   startClock();
   refresh();
   state.pollTimer = setInterval(() => refresh(), 3000);

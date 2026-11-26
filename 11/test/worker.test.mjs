@@ -14,8 +14,13 @@ function createMockD1() {
       return alertState.map((row) => ({ ...row }));
     }
     if (sql.includes('ROW_NUMBER() OVER')) {
-      return summarize(rows.map(({ id, ...row }) => row)).map((item) => ({
+      const region = sql.includes('WHERE region = ?') ? binds[0] : '';
+      return summarize(rows
+        .filter((row) => !region || row.region === region)
+        .map(({ id, ...row }) => row)).map((item) => ({
         device: item.device,
+        region: item.region,
+        station: item.station,
         metric: item.metric,
         unit: item.unit,
         latestAt: item.latestAt,
@@ -30,11 +35,13 @@ function createMockD1() {
     let index = 0;
     const device = sql.includes('device = ?') ? binds[index++] : null;
     const metric = sql.includes('metric = ?') ? binds[index++] : null;
+    const region = sql.includes('region = ?') ? binds[index++] : null;
     const limit = binds[index] ?? 100;
 
     return rows
       .filter((row) => !device || row.device === device)
       .filter((row) => !metric || row.metric === metric)
+      .filter((row) => !region || row.region === region)
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id - a.id)
       .slice(0, limit)
       .map(({ id, ...row }) => row);
@@ -51,19 +58,24 @@ function createMockD1() {
         return { results: select(sql, binds), success: true, meta: {} };
       },
       async first() {
-        if (sql.includes('COUNT(*)')) return { total: rows.length };
+        if (sql.includes('COUNT(*)')) {
+          const region = sql.includes('WHERE region = ?') ? binds[0] : '';
+          return { total: rows.filter((row) => !region || row.region === region).length };
+        }
         return null;
       },
       async run() {
-        if (sql.startsWith('INSERT INTO readings')) {
+        if (sql.startsWith('INSERT OR IGNORE INTO readings')) {
           rows.push({
             id: nextId++,
             device: binds[0],
-            metric: binds[1],
-            value: binds[2],
-            unit: binds[3],
-            timestamp: binds[4],
-            receivedAt: binds[5],
+            region: binds[1],
+            station: binds[2],
+            metric: binds[3],
+            value: binds[4],
+            unit: binds[5],
+            timestamp: binds[6],
+            receivedAt: binds[7],
           });
           return { success: true, meta: { changes: 1 } };
         }
@@ -169,14 +181,45 @@ test('summary combines stats, alerts, recent readings and total', async () => {
   assert.equal(body.recent.length, 1);
   assert.equal(body.alerts.length, 1);
   assert.equal(body.alerts[0].id, 'temp-high');
+  assert.equal(body.rules.length, 4);
 });
 
-test('demo endpoint inserts a generated reading', async () => {
-  const { response } = await call('/api/demo', { method: 'POST' });
-  const body = await response.json();
-  assert.equal(response.status, 201);
-  assert.equal(body.accepted, 1);
-  assert.ok(body.reading.device);
+test('summary, readings and export only include the selected region', async () => {
+  const seeded = await call('/api/telemetry', post('/api/telemetry', {
+    readings: [
+      { device: 'cwa-C0XXX', region: '金門縣', metric: 'temperature', value: 28 },
+      { device: 'cwa-466920', region: '臺北市', metric: 'temperature', value: 33.2 },
+    ],
+  }));
+  const region = encodeURIComponent('金門縣');
+
+  const summary = await call(`/api/summary?region=${region}`, undefined, seeded.db);
+  const body = await summary.response.json();
+  assert.equal(body.total, 1);
+  assert.equal(body.devices, 1);
+  assert.equal(body.stats.length, 1);
+  assert.equal(body.recent.length, 1);
+  assert.ok(body.stats.every((item) => item.region === '金門縣'));
+  assert.ok(body.recent.every((item) => item.region === '金門縣'));
+  assert.equal(body.alerts.length, 0);
+
+  const stats = await call(`/api/stats?region=${region}`, undefined, seeded.db);
+  assert.equal((await stats.response.json()).stats.length, 1);
+
+  const readings = await call(`/api/readings?region=${region}`, undefined, seeded.db);
+  const list = await readings.response.json();
+  assert.equal(list.count, 1);
+  assert.equal(list.readings[0].region, '金門縣');
+
+  const exported = await call(`/api/export?region=${region}`, undefined, seeded.db);
+  const csv = await exported.response.text();
+  assert.match(csv, /金門縣/);
+  assert.doesNotMatch(csv, /臺北市/);
+});
+
+test('demo endpoint is no longer available', async () => {
+  const { response } = await call('/api/demo', post('/api/demo', {}));
+  assert.equal(response.status, 404);
 });
 
 test('delete clears readings', async () => {
@@ -291,6 +334,7 @@ test('CWA import endpoint requires configuration and stores real observations', 
     records: {
       Station: [{
         StationId: '466920',
+        StationName: '臺北',
         ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
         WeatherElement: { AirTemperature: '25.8', RelativeHumidity: '68.4' },
       }],
@@ -306,11 +350,165 @@ test('CWA import endpoint requires configuration and stores real observations', 
 
     const list = await call('/api/readings?limit=10', undefined, imported.db);
     const body = await list.response.json();
-    assert.ok(body.readings.every((item) => item.device === 'cwa-466920'));
+    assert.ok(body.readings.every((item) => item.device === 'cwa-466920' && item.region === '臺北'));
     assert.deepEqual(body.readings.map((item) => item.metric).sort(), ['humidity', 'temperature']);
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('CWA import retries a transient upstream failure', async () => {
+  const originalFetch = globalThis.fetch;
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) return new Response('internal error', { status: 500 });
+    return new Response(JSON.stringify({
+      success: 'true',
+      records: {
+        Station: [{
+          StationId: 'C0W140', StationName: '金門', GeoInfo: { CountyName: '金門縣' },
+          ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
+          WeatherElement: { AirTemperature: '16.8', RelativeHumidity: '60' },
+        }],
+      },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    const imported = await call('/api/import/cwa', post('/api/import/cwa', { region: '金門縣' }), createMockD1(), {
+      CWA_API_KEY: 'CWA-test',
+    });
+    assert.equal(imported.response.status, 201);
+    assert.equal((await imported.response.json()).accepted, 2);
+    assert.equal(attempts, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('CWA import endpoint loads stations from the selected region', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async (url) => {
+    requestedUrl = String(url);
+    return new Response(JSON.stringify({
+      success: 'true',
+      records: {
+        Station: [
+          {
+            StationId: '466920', StationName: '臺北', GeoInfo: { CountyName: '臺北市' },
+            ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
+            WeatherElement: { AirTemperature: '25.8', RelativeHumidity: '68.4' },
+          },
+          {
+            StationId: 'C0V710', StationName: '苓雅', GeoInfo: { CountyName: '高雄市' },
+            ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
+            WeatherElement: { AirTemperature: '29.1', RelativeHumidity: '76' },
+          },
+        ],
+      },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    const imported = await call(
+      '/api/import/cwa',
+      post('/api/import/cwa', { region: '高雄市' }),
+      createMockD1(),
+      { CWA_API_KEY: 'CWA-test' },
+    );
+    assert.equal(imported.response.status, 201);
+    assert.equal((await imported.response.json()).accepted, 2);
+    assert.equal(new URL(requestedUrl).searchParams.get('CountyName'), '高雄市');
+
+    const list = await call('/api/readings?limit=10', undefined, imported.db);
+    const body = await list.response.json();
+    assert.ok(body.readings.every((item) => item.device === 'cwa-C0V710'
+      && item.region === '高雄市' && item.station === '苓雅'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('scheduled handler imports real CWA observations and simulates all four metrics', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async (url) => {
+    requestedUrl = String(url);
+    return new Response(JSON.stringify({
+      success: 'true',
+      records: {
+        Station: [{
+          StationId: 'C0W140', StationName: '金門', GeoInfo: { CountyName: '金門縣', TownName: '金城鎮' },
+          ObsTime: { DateTime: '2026-11-23T04:00:00+08:00' },
+          WeatherElement: { AirTemperature: '16.8', RelativeHumidity: '60' },
+        }],
+      },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    const db = createMockD1();
+    await worker.scheduled({}, { ...makeEnv(db), CWA_API_KEY: 'CWA-test', CWA_REGIONS: '金門縣' });
+    assert.equal(new URL(requestedUrl).searchParams.get('CountyName'), '金門縣');
+
+    const list = await call('/api/readings?limit=100', undefined, db);
+    const body = await list.response.json();
+    assert.equal(body.readings.length, 26);
+    assert.ok(body.readings.every((item) => item.region === '金門縣'));
+
+    const cwa = body.readings.filter((item) => item.device === 'cwa-C0W140');
+    assert.equal(cwa.length, 2);
+    assert.ok(cwa.every((item) => item.station === '金門（金城鎮）'));
+    assert.deepEqual(cwa.map((item) => item.metric).sort(), ['humidity', 'temperature']);
+
+    const simulated = body.readings.filter((item) => item.device === 'sensor-a2');
+    assert.equal(simulated.length, 24);
+    assert.ok(simulated.every((item) => item.station === '模擬感測器'));
+    assert.deepEqual([...new Set(simulated.map((item) => item.metric))].sort(),
+      ['humidity', 'signal', 'temperature', 'voltage']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('scheduled handler still simulates readings without a CWA key', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('CWA must not be called'); };
+
+  try {
+    const db = createMockD1();
+    await worker.scheduled({}, makeEnv(db));
+
+    const list = await call('/api/readings?limit=100', undefined, db);
+    const body = await list.response.json();
+    assert.equal(body.readings.length, 24);
+    assert.ok(body.readings.every((item) => item.device === 'sensor-a2' && item.region === ''));
+    assert.deepEqual([...new Set(body.readings.map((item) => item.metric))].sort(),
+      ['humidity', 'signal', 'temperature', 'voltage']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('simulate endpoint writes all four metrics through the API', async () => {
+  const { response, db } = await call(
+    '/api/simulate',
+    post('/api/simulate', { region: '金門縣' }),
+    createMockD1(),
+    { API_TOKEN: 'write-secret' },
+  );
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(await response.json(), { ok: true, accepted: 24, total: 24 });
+
+  const list = await call('/api/readings?limit=100', undefined, db);
+  const body = await list.response.json();
+  assert.equal(body.readings.length, 24);
+  assert.ok(body.readings.every((item) => item.device === 'sensor-a2' && item.region === '金門縣'));
+  assert.deepEqual([...new Set(body.readings.map((item) => item.metric))].sort(),
+    ['humidity', 'signal', 'temperature', 'voltage']);
 });
 
 test('export endpoint returns filtered and escaped CSV', async () => {
@@ -318,6 +516,7 @@ test('export endpoint returns filtered and escaped CSV', async () => {
     readings: [
       {
         device: '=cmd',
+        region: '臺北',
         metric: 'temperature',
         value: 31,
         unit: 'C',
@@ -332,7 +531,7 @@ test('export endpoint returns filtered and escaped CSV', async () => {
   assert.match(response.headers.get('content-disposition'), /attachment/);
 
   const text = await response.text();
-  assert.ok(text.startsWith('device,metric,value,unit,timestamp,receivedAt'));
-  assert.match(text, /"'=cmd","temperature"/);
+  assert.ok(text.startsWith('device,region,station,metric,value,unit,timestamp,receivedAt'));
+  assert.match(text, /"'=cmd","臺北","","temperature"/);
   assert.doesNotMatch(text, /sensor-a2/);
 });

@@ -1,9 +1,16 @@
-# TELEMETRY HUB · 遙測資料監控系統-期末專案
+# TELEMETRY HUB · 遙測資料監控系統（期末專案）
 
-TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測平台：接收裝置（溫度、濕度、電壓、訊號強度等）回傳的量測資料，寫入 **Cloudflare D1**，即時統計、判斷警戒條件，並在瀏覽器儀表板中視覺化。
+TELEMETRY HUB 是一套部署在 **Cloudflare Workers** 上的輕量級遙測平台：接收裝置（溫度、濕度、電壓、訊號強度等）回傳的量測資料，寫入 **Cloudflare D1**，即時統計、判斷警戒條件，並在瀏覽器儀表板中視覺化。
 
-整套系統沒有獨立的後端伺服器：Worker 同時處理 API 與靜態頁面，前端為純 HTML / CSS / JavaScript，不用 React、不用打包工具。
+整套系統沒有獨立的後端伺服器：Worker 同時處理 API 與靜態頁面；前端是純 HTML / CSS / JavaScript，不用 React、不用打包工具。
 
+## 線上網址
+
+**https://telemetry-hub.fieldnotebook.workers.dev**
+
+健康檢查：https://telemetry-hub.fieldnotebook.workers.dev/api/health
+
+---
 
 ## 核心能力
 
@@ -11,9 +18,13 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 - **持久化**：資料寫入 D1（SQLite）的 `readings` 資料表，不受 Worker 重啟影響。
 - **即時統計**：依 `device + metric` 計算最新值、最小值、最大值、平均值與樣本數。
 - **告警規則**：以 Threshold 規則判斷異常，在告警控制台顯示裝置、數值與時間。
-- **視覺化儀表板**：Canvas 繪製時序波形、裝置狀態表、KPI 卡片與即時事件流。
-- **示範資料**：`POST /api/demo` 或儀表板上的「注入一筆」按鈕可立刻產生假資料。
-- **真實氣象資料**：可從中央氣象署 Open Data API 匯入觀測值，device 以 `cwa-<測站編號>` 表示；硬體上傳流程完全不變。
+- **視覺化儀表板**：波形控制列用「縣市＋測站」兩層連動下拉與五個精簡指標按鈕（全部四線、temperature、humidity、voltage、rssi）切換；Canvas 可畫雙 Y 軸或四線同圖。
+- **單一測站優先**：進入頁面或切換縣市時，自動選定該縣市的第一個測站（優先排列具備完整四項指標者），避免不同設備的數值混在同一條線上；仍可手動改選「全部測站」。
+- **表格操作**：裝置狀態表支援關鍵字搜尋、縣市篩選、每頁 10 筆分頁；「範圍」欄以 Bullet Gauge 顯示固定物理量程、歷史波動區間與最新值圓點；點擊列會連動波形並捲動定位。
+- **真實氣象資料**：可從中央氣象署 Open Data API 匯入觀測值，device 以 `cwa-<測站編號>` 表示，並依波形控制列的縣市下拉選單載入該地區測站；硬體上傳流程完全不變。
+- **定時更新**：Worker Cron 每 10 分鐘自動抓取氣象署觀測，同時以同一台 `sensor-a2` 寫入溫度／濕度／電壓／訊號四項模擬讀數（每分鐘取樣，每次 6 個時間點 × 4 指標 = 24 筆）。
+- **地區欄位**：每筆量測可選填 `region`，會顯示在裝置表、事件流與 CSV 匯出中；波形控制列與表格篩選器可選「全部縣市」或 22 個台灣縣市。
+- **去重複**：同一 `device + metric + 觀測時間` 只保留一筆，定時抓取不會重複塞入同一小時的資料。
 - **寫入保護**：設定 `API_TOKEN` 後，寫入端點需帶 `Authorization: Bearer <token>`；讀取端點維持公開。
 - **告警通知**：狀態變化時可 POST 到 `ALERT_WEBHOOK_URL`，通知狀態存在 D1，避免重複發送。
 - **SQL 聚合**：統計與告警由 D1 直接分組計算，不再受限於最近 500 筆。
@@ -25,40 +36,45 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 
 ## 系統架構
 
-```
- 裝置 / curl / 示範按鈕          瀏覽器
-        │ POST /api/telemetry       │ GET /api/summary（每 3 秒）
-        ▼                           ▼
-┌──────────────────────────────────────────────┐
-│            Cloudflare Worker                 │
-│  worker/index.js                             │
-│    ├─ /api/* → API 路由                       │
-│    └─ 其他   → env.ASSETS.fetch() 靜態頁面     │
-│                                              │
-│  src/validate.js  驗證與正規化                 │
-│  src/stats.js     分組統計                     │
-│  src/aggregate.js D1 SQL 聚合                  │
-│  src/rules.js     告警規則判斷                 │
-│  src/notify.js    Webhook 通知狀態機           │
-│  src/auth.js      寫入端點 Token 檢查          │
-│  src/export.js    CSV 序列化                   │
-│  src/demo.js      示範資料產生器               │
-│  src/cwa.js       中央氣象署資料轉換            │
-└──────────────────┬───────────────────────────┘
-                    ▼
-      Cloudflare D1（readings / alert_state）
-                    │
-                    ├─ migrations/0001_init.sql
-                    └─ migrations/0002_alert_state.sql
+```mermaid
+flowchart LR
+    subgraph Sources[資料來源]
+        Device[裝置 / curl<br/>POST /api/telemetry]
+        Cron[Worker Cron<br/>每 10 分鐘]
+        CWA[中央氣象署<br/>Open Data API]
+    end
+
+    subgraph Edge[Cloudflare Edge]
+        Worker[Worker 入口<br/>worker/index.js]
+        Modules[核心模組<br/>validate · aggregate · rules<br/>notify · auth · export · cwa · simulate]
+        Assets[env.ASSETS<br/>public/index.html · styles.css · app.js]
+        Worker --> Modules
+        Worker --> Assets
+    end
+
+    subgraph Storage[持久化]
+        D1[(Cloudflare D1<br/>telemetry-hub-db<br/>readings / alert_state<br/>migrations 0001-0005)]
+    end
+
+    Browser[瀏覽器儀表板<br/>GET /api/* 每 3 秒]
+    Hook[ALERT_WEBHOOK_URL<br/>狀態變化時通知]
+
+    Device --> Worker
+    Cron --> Worker
+    CWA -- "需 CWA_API_KEY" --> Worker
+    Worker -- "SQL 讀寫" --> D1
+    Assets --> Browser
+    Browser -- "每 3 秒輪詢" --> Worker
+    Worker -- "告警狀態" --> Hook
 ```
 
 資料流：
 
-1. 裝置送出量測到 `POST /api/telemetry`。
-2. Worker 驗證欄位，補上 `received_at`，寫入 D1。
-3. Dashboard 呼叫 `GET /api/summary`，一次取得統計、告警、最近紀錄與總數。
-4. `src/rules.js` 比對最新值與 Threshold，異常項目顯示在告警控制台。
-5. 告警狀態由 `src/notify.js` 寫回 `alert_state`；狀態改變時才發出 Webhook。
+1. 裝置送出量測到 `POST /api/telemetry`；Worker 驗證欄位、補上 `received_at` 後寫入 D1。
+2. 瀏覽器每 3 秒呼叫 `GET /api/summary`，一次取得統計、告警、規則、最近 60 筆與總數。
+3. `src/rules.js` 比對最新值與 Threshold；異常項目顯示在告警控制台。
+4. 告警狀態由 `src/notify.js` 寫回 `alert_state`；狀態改變時才發出 Webhook。
+5. Worker Cron 每 10 分鐘呼叫 `scheduled()`，先以同一台 `sensor-a2` 寫入四項模擬讀數，再匯入氣象署觀測；即使沒設定 `CWA_API_KEY`，四條模擬波形仍會持續累積。
 
 ---
 
@@ -69,6 +85,7 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 ```json
 {
   "device": "sensor-a1",
+  "region": "溫室 A",
   "metric": "temperature",
   "value": 26.7,
   "unit": "C",
@@ -81,8 +98,8 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 ```json
 {
   "readings": [
-    { "device": "sensor-a1", "metric": "temperature", "value": 26.7, "unit": "C" },
-    { "device": "sensor-a1", "metric": "humidity", "value": 61.2, "unit": "%" }
+    { "device": "sensor-a1", "region": "溫室 A", "metric": "temperature", "value": 26.7, "unit": "C" },
+    { "device": "sensor-a1", "region": "溫室 A", "metric": "humidity", "value": 61.2, "unit": "%" }
   ]
 }
 ```
@@ -90,6 +107,7 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 | 欄位 | 型別 | 必填 | 說明 |
 | --- | --- | --- | --- |
 | `device` | string | 是 | 裝置 ID，例如 `sensor-a1` |
+| `region` | string | 否 | 量測地區／測站所在地，例如 `溫室 A`、`臺北`，最長 64 字 |
 | `metric` | string | 是 | 指標名稱：`temperature`、`humidity`、`voltage`、`signal` |
 | `value` | number | 是 | 有限數值或數字字串，不接受 `NaN` / `Infinity` / `null` |
 | `unit` | string | 否 | 單位：`C`、`%`、`V`、`dBm` |
@@ -103,16 +121,20 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 | --- | --- | --- |
 | `GET` | `/api/health` | 健康檢查，回傳 `{"ok":true,"service":"telemetry-hub"}` |
 | `POST` | `/api/telemetry` | 上傳單筆或批次量測 |
-| `POST` | `/api/demo` | 產生一筆隨機示範量測 |
-| `POST` | `/api/import/cwa` | 從中央氣象署拉取觀測資料並寫入（需 `CWA_API_KEY`） |
-| `GET` | `/api/readings?device=&metric=&limit=100` | 查詢最近量測（最多 500 筆） |
-| `GET` | `/api/stats` | 各裝置 / 指標的統計摘要 |
-| `GET` | `/api/alerts` | 目前的告警列表 |
-| `GET` | `/api/summary` | 儀表板用：統計 + 告警 + 最近 60 筆 + 總數 |
-| `GET` | `/api/export?device=&metric=&limit=5000` | 匯出 CSV（最多 10000 筆） |
+| `POST` | `/api/import/cwa` | 從中央氣象署拉取觀測資料並寫入（需 `CWA_API_KEY`），可在 body 傳 `{ "region": "高雄市" }` 只載入該縣市 |
+| `POST` | `/api/simulate` | 測試用：寫入 24 筆 `sensor-a2` 模擬讀數（6 個時間點 × 溫度／濕度／電壓／訊號），可在 body 傳 `{ "region": "高雄市" }` |
+| `GET` | `/api/readings?device=&metric=&region=&limit=100` | 查詢最近量測（最多 500 筆） |
+| `GET` | `/api/stats?region=` | 各裝置 / 指標的統計摘要 |
+| `GET` | `/api/alerts?region=` | 目前的告警列表 |
+| `GET` | `/api/summary?region=` | 儀表板用：統計 + 告警 + 規則 + 最近 60 筆 + 總數 |
+| `GET` | `/api/export?device=&metric=&region=&limit=5000` | 匯出 CSV（最多 10000 筆） |
 | `DELETE` | `/api/readings` | 清空所有量測（展示用重置） |
 
-設定 `API_TOKEN` 後，`POST /api/telemetry`、`POST /api/demo`、`POST /api/import/cwa`、`DELETE /api/readings` 需附帶 `Authorization: Bearer <token>`；所有 `GET` 端點仍可公開讀取。
+設定 `API_TOKEN` 後，`POST /api/telemetry`、`POST /api/import/cwa`、`DELETE /api/readings` 需附帶 `Authorization: Bearer <token>`；所有 `GET` 端點仍可公開讀取。`POST /api/simulate` 是免 Token 的測試端點，供「注入模擬讀數」按鈕使用。
+
+`/api/readings` 與 `/api/stats` 的每筆資料都包含 `region`（未填時為空字串）；`GET /api/export` 的 CSV 欄位順序為 `device,region,station,metric,value,unit,timestamp,receivedAt`。
+
+上述 `GET` 端點都可用 `?region=金門縣` 依縣市過濾，KPI、統計、告警、波形與 CSV 都會只處理該地區的資料；未帶參數時才顯示全部。
 
 成功回應：
 
@@ -132,9 +154,9 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 
 ---
 
-## 告警規則
+## 告警規則與通知
 
-定義在 `src/rules.js`，可依需求增減：
+規則定義在 `src/rules.js`，可依需求增減：
 
 | Rule ID | Device | Metric | 條件 |
 | --- | --- | --- | --- |
@@ -143,9 +165,7 @@ TELEMETRY HUB 是一套 Deploy 在 **Cloudflare Workers** 上的輕量級遙測�
 | `volt-low` | `sensor-a2` | `voltage` | `value < 11.5` |
 | `signal-low` | `sensor-a2` | `signal` | `value < -80` |
 
-## 告警 Webhook
-
-在 Worker 設定以下 Secret 即可啟用；未設定時完全不發出通知。
+在 Worker 設定以下 Secret 即可啟用 Webhook；未設定時完全不發出通知：
 
 | Secret | 說明 |
 | --- | --- |
@@ -181,27 +201,42 @@ npx wrangler secret put CWA_API_KEY
 CWA_API_KEY=CWA-你的授權碼
 ```
 
+`.dev.vars` 不會隨 `public/` 一起上傳；雲端 Cron 只讀取 Wrangler Secret。
+
 ### 3. 載入資料
 
-- **最簡單**：在儀表板「資料入口」區塊點「載入氣象資料」，會呼叫 `POST /api/import/cwa`。
+- **最簡單**：先在波形監測控制列選擇台灣縣市，再點「資料入口」區塊的「載入氣象資料」，會呼叫 `POST /api/import/cwa` 並只載入該縣市的**所有測站**（例如金門縣的金門、烈嶼等站）；裝置表會列出「縣市／測站（含鄉鎮）／測量日期」，事件流與告警也附上日期，CSV 另有 `station` 欄；不是只抓單一站。
+- **自動累積波形**：部署後 Worker Cron 每 10 分鐘抓一次氣象署，並同時為同一台 `sensor-a2` 寫入 6 組模擬讀數，每組都含溫度（C）、濕度（%）、電壓（V）、訊號（dBm）四個欄位；同一小時的重複氣象觀測會被忽略，模擬讀數則每分鐘一個時間點。本機 `.dev.vars` 可設 `CWA_REGIONS=金門縣,臺北市` 限制定時抓取範圍，未設定時抓全部測站，模擬讀數也會跟著寫入相同 `region`。
+- **上游容錯**：氣象署 API 單次請求逾時（15 秒）或回 5xx 時會自動重試一次，失敗訊息會直接顯示在頁面上。
+- **手動測試四線**：點「資料入口」的「注入模擬讀數」會呼叫 `POST /api/simulate` 立刻寫入 24 筆（6 個時間點 × 四項指標），波形區選「全部四線」即可看到同一台 `sensor-a2` 的溫度、濕度、電壓、訊號四條線（各自獨立量程，圖例顯示最新值與單位）；不需要再混用不同設備的資料。
+- **只看所選縣市**：切換波形控制列的縣市下拉時，儀表板會呼叫 `/api/summary?region=<縣市>`，KPI、波形、告警、事件流與裝置表都只顯示該縣市；「匯出 CSV」也只匯出該縣市。
+- **範圍刻度條**：「範圍」欄改用固定物理量程的 Bullet Gauge（溫度 0–40°C、濕度 0–100%、電壓 3.0–4.2V、訊號 -110–-40dBm）。暗色底軌上以高亮條標出歷史 min–max 波動區間（`min = max` 時不畫），圓點標記最新值位置；溫度依 18/28°C 切換冷藍／青綠／暖橘紅，其他指標依距離告警門檻遠近切換綠／黃／紅。
 - **命令列**：`npm run import:cwa`，可加 `--clear` 先清空舊的假資料：
 
 ```powershell
 npm run import:cwa -- --clear
 ```
 
-若只要特定測站，可設 `CWA_STATIONS=466920,466990`（逗號分隔的測站編號）。
+若只要特定測站，可設 `CWA_STATIONS=466920,466990`（逗號分隔的測站編號）；此限制只在未指定縣市時生效。
+
+API 也可直接指定縣市：
+
+```json
+{ "region": "高雄市" }
+```
 
 ### 4. 資料對照
 
 | CWA 欄位 | Telemetry HUB 欄位 |
 | --- | --- |
 | `StationId` | `device = cwa-<測站編號>` |
+| `StationName` + `GeoInfo.TownName` | `station = 測站名稱（鄉鎮）`；`region = 測站所在地區`，若指定縣市則 `region = 所選縣市` |
+| `GeoInfo.CountyName` | 依所選縣市篩選測站 |
 | `WeatherElement.AirTemperature` | `metric = temperature`，單位 `C` |
 | `WeatherElement.RelativeHumidity` | `metric = humidity`，單位 `%` |
-| `ObsTime.DateTime` | `timestamp`（轉成 ISO 8601） |
+| `ObsTime.DateTime` | `timestamp`（轉成 ISO 8601），裝置表「測量日期」與事件流日期取 UTC 當天 |
 
-舊格式中 `HUMD` 是 0–1.0 的小數，程式會自動乘以 100；`-99` 與 `X` 視為缺測並跳過。報告前建議先點「清空資料」，再點「載入氣象資料」，圖表上就不會混到示範讀數。
+舊格式中 `HUMD` 是 0–1.0 的小數，程式會自動乘以 100；`-99` 與 `X` 視為缺測並跳過。同一測站、同一指標、同一觀測時間只會保留一筆；溫度與濕度可由 CWA 或 Cron 模擬補充，電壓與訊號則由 Cron 模擬產生。
 
 ---
 
@@ -209,11 +244,14 @@ npm run import:cwa -- --clear
 
 ```text
 11/
-├── wrangler.jsonc              Worker 名稱、assets、D1 binding
+├── wrangler.jsonc              Worker 名稱、assets、D1 binding、Cron
 ├── package.json                dev / deploy / db / test 指令
 ├── migrations/
 │   ├── 0001_init.sql           建立 readings 資料表與索引
-│   └── 0002_alert_state.sql    建立告警通知狀態表
+│   ├── 0002_alert_state.sql    建立告警通知狀態表
+│   ├── 0003_reading_region.sql 增加 readings.region 欄位
+│   ├── 0004_reading_station.sql 增加 readings.station 欄位（測站名稱）
+│   └── 0005_reading_dedupe.sql  觀測時間唯一索引，避免定時抓取重複寫入
 ├── worker/
 │   └── index.js                Worker 入口：路由 + 靜態資源
 ├── src/
@@ -224,14 +262,13 @@ npm run import:cwa -- --clear
 │   ├── notify.js               Webhook 狀態機
 │   ├── auth.js                 寫入端點 Token 檢查
 │   ├── export.js               CSV 序列化
-│   ├── demo.js                 示範資料產生器
-│   └── cwa.js                  中央氣象署資料轉換
+│   ├── cwa.js                  中央氣象署資料轉換
+│   └── simulate.js             溫度／濕度／電壓／訊號模擬
 ├── public/
 │   ├── index.html              儀表板頁面
 │   ├── styles.css              版面、色彩、波形與動畫
 │   └── app.js                  資料抓取、Canvas 圖表、互動
 ├── scripts/
-│   ├── seed.mjs                批次寫入示範紀錄（本機 / 遠端皆可）
 │   ├── import-cwa.mjs          從中央氣象署匯入真實觀測資料
 │   └── check-config.mjs        部署前檢查 D1 database_id
 ├── test/
@@ -270,12 +307,23 @@ ALERT_WEBHOOK_URL=https://example.com/hook
 npm test             # 核心邏輯 + Worker 路由測試
 npm run config:check # 檢查 D1 database_id 是否已完成設定
 npm run check        # 測試 + 設定檢查
+npm run cf:dry       # 部署前 dry-run
 npm run deploy       # 檢查設定後部署到 Cloudflare
 ```
 
 ---
 
 ## 部署到 Cloudflare
+
+### 目前部署狀態
+
+- 網址：**https://telemetry-hub.fieldnotebook.workers.dev**
+- Worker：`telemetry-hub`
+- Cron：`*/10 * * * *`（每 10 分鐘）
+- D1：`telemetry-hub-db`，migrations `0001`–`0005` 皆已套用
+- Secret：`CWA_API_KEY` 已寫入雲端；`.dev.vars` 不會上傳
+
+### 首次部署流程
 
 1. 登入 Wrangler：
 
@@ -289,7 +337,7 @@ npx wrangler login
 npx wrangler d1 create telemetry-hub-db
 ```
 
-3. 把指令印出的 `database_id` 填入 `wrangler.jsonc` 的 `d1_databases[0].database_id`（目前是佔位用的 `00000000-...`，只適合本機開發）。
+3. 把指令印出的 `database_id` 填入 `wrangler.jsonc` 的 `d1_databases[0].database_id`（目前已是真實值，`npm run config:check` 會驗證）。
 
 4. 依需求設定 Secret（未設定就不啟用該功能）：
 
@@ -308,39 +356,35 @@ npm run db:remote
 npm run deploy
 ```
 
-部署完成後 Wrangler 會印出 `*.workers.dev` 網址。目前本專案的部署網址為 https://telemetry-hub.fieldnotebook.workers.dev 。
+部署完成後 Wrangler 會印出 `*.workers.dev` 網址；本專案目前使用上方「線上網址」。
 
 ---
 
 ## 操作示範
 
-```bash
-curl https://<your-worker>.workers.dev/api/health
+以下直接以上線網址示範：
 
-curl -X POST https://<your-worker>.workers.dev/api/telemetry `
+```bash
+curl https://telemetry-hub.fieldnotebook.workers.dev/api/health
+
+curl -X POST https://telemetry-hub.fieldnotebook.workers.dev/api/telemetry `
   -H "Content-Type: application/json" `
   -d '{"device":"sensor-a1","metric":"temperature","value":32.5,"unit":"C"}'
 
-curl -X POST https://<your-worker>.workers.dev/api/demo
-curl -X POST https://<your-worker>.workers.dev/api/import/cwa
-curl "https://<your-worker>.workers.dev/api/readings?device=sensor-a1&limit=10"
-curl https://<your-worker>.workers.dev/api/summary
-curl -o telemetry.csv "https://<your-worker>.workers.dev/api/export?format=csv"
+curl -X POST https://telemetry-hub.fieldnotebook.workers.dev/api/import/cwa
+curl -X POST https://telemetry-hub.fieldnotebook.workers.dev/api/simulate
+curl "https://telemetry-hub.fieldnotebook.workers.dev/api/readings?device=sensor-a1&limit=10"
+curl https://telemetry-hub.fieldnotebook.workers.dev/api/summary
+curl -o telemetry.csv "https://telemetry-hub.fieldnotebook.workers.dev/api/export?format=csv"
 ```
 
 若有設定 `API_TOKEN`，寫入時改用：
 
 ```bash
-curl -X POST https://<your-worker>.workers.dev/api/telemetry `
+curl -X POST https://telemetry-hub.fieldnotebook.workers.dev/api/telemetry `
   -H "Content-Type: application/json" `
   -H "Authorization: Bearer <token>" `
   -d '{"device":"sensor-a1","metric":"temperature","value":32.5,"unit":"C"}'
-```
-
-批次塞入 40 筆示範資料（本機）：
-
-```powershell
-node scripts\seed.mjs http://localhost:8787 40
 ```
 
 ---
@@ -356,7 +400,13 @@ node scripts\seed.mjs http://localhost:8787 40
 - [ ] 有設定 `API_TOKEN` 時，沒有 Token 的寫入要求回傳 401
 - [ ] 同一條告警只觸發一次 Webhook，解除後再觸發可再次通知
 - [ ] `GET /api/export` 下載的 CSV 內容與篩選條件相符
-- [ ] 設定 `CWA_API_KEY` 後，`POST /api/import/cwa` 可寫入 `cwa-` 前綴的測站資料
+- [ ] 設定 `CWA_API_KEY` 後，`POST /api/import/cwa` 可寫入 `cwa-` 前綴的測站資料與 `region`
+- [ ] 部署後等待一個 Cron 週期，`GET /api/readings?metric=temperature`、`?metric=humidity`、`?metric=voltage` 與 `?metric=signal` 都會出現 `sensor-a2` 的模擬讀數
+- [ ] 點「載入氣象資料」與「注入模擬讀數」後，選「全部四線」可看到同一台 `sensor-a2` 的四條波形與圖例
+- [ ] 進入頁面與切換縣市會自動選定第一個測站，波形控制列的五個指標按鈕可切換波形
+- [ ] 裝置表搜尋、縣市篩選與分頁正常，點列後下拉與指標連動並捲到波形圖
+- [ ] 範圍刻度條以固定量程計算，溫度／濕度／電壓／訊號各有正確顏色與最新值圓點
+- [ ] 裝置表的「地區」欄與 CSV 的 `region` 欄位皆顯示測站所在地
 - [ ] `npm test` 全部通過
 - [ ] `npm run config:check` 在填入真實 `database_id` 後通過
 
@@ -368,3 +418,5 @@ node scripts\seed.mjs http://localhost:8787 40
 - Webhook 目前為 fire-and-forget 的單次 POST，沒有重試佇列。
 - `GET /api/export` 單次最多 10000 筆，更大的資料集應改成分頁或 Cursor。
 - 即時更新採用 3 秒輪詢，高頻場景可改用 WebSocket / SSE。
+- 模擬的四項指標都是 Cron 用時間函數加隨機擾動產生的示範資料，不是真實硬體量測；電壓與訊號門檻規則的裝置固定為 `sensor-a2`，溫度與濕度門檻規則仍固定在 `sensor-a1`。
+- Bullet Gauge 的電壓量程固定為 3.0–4.2V，但目前示範電壓仍約 11–13V，圓點會落在最右端；若要讓電壓位置也有區辨度，需同步調整模擬電壓與 `volt-low` 門檻。

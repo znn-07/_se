@@ -55,6 +55,7 @@ export function evaluateAlerts(latest, rules = RULES) {
     alerts.push({
       id: rule.id,
       device: rule.device,
+      region: reading.region ?? '',
       metric: rule.metric,
       value: reading.value,
       unit: reading.unit || '',

@@ -1,4 +1,4 @@
-const COLUMNS = ['device', 'metric', 'value', 'unit', 'timestamp', 'receivedAt'];
+const COLUMNS = ['device', 'region', 'station', 'metric', 'value', 'unit', 'timestamp', 'receivedAt'];
 
 export function csvCell(value) {
   const text = String(value ?? '');

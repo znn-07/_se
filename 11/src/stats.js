@@ -12,6 +12,8 @@ export function summarize(readings) {
     if (!group) {
       group = {
         device: reading.device,
+        region: reading.region || '',
+        station: reading.station || '',
         metric: reading.metric,
         unit: reading.unit || '',
         count: 0,
@@ -32,6 +34,8 @@ export function summarize(readings) {
       group.latest = reading.value;
       group.latestAt = reading.timestamp;
       group.unit = reading.unit || group.unit;
+      group.region = reading.region || group.region;
+      group.station = reading.station || group.station;
     }
   }
 

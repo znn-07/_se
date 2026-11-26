@@ -53,13 +53,9 @@
     <section class="shell hero">
       <div class="hero__copy">
         <p class="eyebrow"><span></span> FIELD TELEMETRY / LIVE LINK</p>
-        <h1>把現場的每一次<br><span class="hero__accent">心跳</span>，變成資料。</h1>
+        <h1>雲端邊緣遙測與<br><span class="hero__accent">氣象</span>監控儀表板</h1>
         <p class="hero__lede">感測器持續回傳溫度、濕度、電壓與訊號強度。資料進入 D1 之後，在這裡被即時統計、比對門檻，並畫成一條看得見的波形。</p>
         <div class="hero__actions">
-          <button class="btn btn--primary" id="injectBtn" type="button">
-            <span>注入一筆讀數</span>
-            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h13M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.6"/></svg>
-          </button>
           <button class="btn btn--ghost" id="pauseBtn" type="button" aria-pressed="false">
             <span id="pauseLabel">暫停即時更新</span>
           </button>
@@ -121,12 +117,29 @@
           </div>
         </div>
 
-        <div class="chips" id="seriesChips" role="group" aria-label="選擇監測指標"></div>
+        <div class="control-bar">
+          <label class="control-field">
+            <span>縣市</span>
+            <select id="countySelect" aria-label="選擇縣市"></select>
+          </label>
+          <label class="control-field">
+            <span>測站</span>
+            <select id="stationSelect" aria-label="選擇測站"></select>
+          </label>
+          <div class="metric-switch" id="metricSwitch" role="group" aria-label="選擇監測指標">
+            <button class="chip" type="button" data-metric="all">全部四線</button>
+            <button class="chip" type="button" data-metric="temperature">temperature</button>
+            <button class="chip" type="button" data-metric="humidity">humidity</button>
+            <button class="chip" type="button" data-metric="voltage">voltage</button>
+            <button class="chip" type="button" data-metric="rssi">rssi</button>
+          </div>
+        </div>
 
         <div class="chart-wrap">
           <canvas id="chart" aria-label="遙測數值時序波形圖"></canvas>
           <div class="chart-watermark" aria-hidden="true">LIVE / STREAM</div>
         </div>
+        <div class="chart-legend" id="chartLegend" aria-label="波形圖例"></div>
 
         <div class="readouts" id="readouts">
           <div><span>LATEST</span><strong id="roLatest">--</strong></div>
@@ -168,18 +181,30 @@
           <span class="panel__index">04 / NODE MATRIX</span>
           <h2>裝置狀態表</h2>
         </div>
-        <p>依 <code>device + metric</code> 分組統計，數值越接近右側代表越接近門檻。</p>
+        <p>依 <code>device + metric</code> 分組統計，數值越接近右側代表越接近門檻；點擊任一列可跳至波形。</p>
+      </div>
+      <div class="table-toolbar">
+        <label class="table-search">
+          <span>搜尋</span>
+          <input id="tableSearch" type="search" placeholder="縣市 / 測站 / 指標" aria-label="搜尋縣市、測站或指標">
+        </label>
+        <label class="table-filter">
+          <span>縣市</span>
+          <select id="tableCounty" aria-label="依縣市篩選"></select>
+        </label>
+        <span class="table-count" id="tableCount"></span>
       </div>
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>裝置</th><th>指標</th><th>最新值</th><th>範圍</th><th>平均</th><th>樣本</th><th>狀態</th>
+              <th>裝置</th><th>縣市</th><th>測站／地點</th><th>指標</th><th>測量日期</th><th>最新值</th><th>範圍</th><th>平均</th><th>樣本</th><th>狀態</th>
             </tr>
           </thead>
           <tbody id="deviceRows"></tbody>
         </table>
       </div>
+      <div class="pagination" id="tablePagination" aria-label="表格分頁"></div>
     </section>
 
     <section class="shell api-section">
@@ -191,6 +216,7 @@
           </div>
           <div class="panel__actions">
             <button class="btn btn--ghost" id="cwaBtn" type="button">載入氣象資料</button>
+            <button class="btn btn--ghost" id="simulateBtn" type="button">注入模擬讀數</button>
             <a class="btn btn--ghost" id="exportBtn" href="/api/export?format=csv" download>匯出 CSV</a>
             <button class="btn btn--danger" id="resetBtn" type="button">清空資料</button>
           </div>
@@ -198,9 +224,9 @@
         <div class="api-grid">
           <div class="endpoint-list">
             <div class="endpoint"><span>POST</span><code>/api/telemetry</code><em>上傳單筆或批次量測</em></div>
-            <div class="endpoint"><span>GET</span><code>/api/summary</code><em>統計、告警與最近紀錄</em></div>
-            <div class="endpoint"><span>POST</span><code>/api/demo</code><em>注入一筆示範讀數</em></div>
+            <div class="endpoint"><span>GET</span><code>/api/summary</code><em>統計、告警、規則與最近紀錄</em></div>
             <div class="endpoint"><span>POST</span><code>/api/import/cwa</code><em>載入中央氣象署觀測資料</em></div>
+            <div class="endpoint"><span>POST</span><code>/api/simulate</code><em>寫入溫度／濕度／電壓／訊號模擬讀數</em></div>
             <div class="endpoint"><span>GET</span><code>/api/health</code><em>健康檢查</em></div>
           </div>
           <pre class="code-block"><code>curl -X POST https://&lt;worker&gt;.workers.dev/api/telemetry \

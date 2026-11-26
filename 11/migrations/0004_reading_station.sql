@@ -1,0 +1,1 @@
+ALTER TABLE readings ADD COLUMN station TEXT NOT NULL DEFAULT '';

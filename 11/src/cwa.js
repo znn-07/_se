@@ -13,10 +13,17 @@ function isoTime(value, fallback) {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString();
 }
 
+function placeOf(station, name) {
+  const town = String(station?.GeoInfo?.TownName ?? station?.TownName ?? '').trim();
+  return town && town !== name ? `${name}（${town}）` : name;
+}
+
 function stationReadings(station, fallbackTime) {
   const id = String(station?.StationId ?? station?.stationId ?? '').trim();
   if (!id) return [];
 
+  const region = String(station?.StationName ?? station?.locationName ?? station?.stationName ?? '').trim();
+  const place = placeOf(station, region);
   const weather = station.WeatherElement ?? {};
   const timestamp = isoTime(station.ObsTime?.DateTime ?? station.obsTime?.DateTime, fallbackTime);
   const temperature = numeric(weather.AirTemperature ?? weather.TEMP);
@@ -26,11 +33,13 @@ function stationReadings(station, fallbackTime) {
   const readings = [];
 
   if (temperature !== null) {
-    readings.push({ device, metric: 'temperature', value: temperature, unit: 'C', timestamp });
+    readings.push({ device, region, station: place, metric: 'temperature', value: temperature, unit: 'C', timestamp });
   }
   if (humidity !== null) {
     readings.push({
       device,
+      region,
+      station: place,
       metric: 'humidity',
       value: Math.round(humidity * 10) / 10,
       unit: '%',
@@ -44,6 +53,8 @@ function locationReadings(location, fallbackTime) {
   const id = String(location?.stationId ?? location?.StationId ?? '').trim();
   if (!id) return [];
 
+  const region = String(location?.locationName ?? location?.StationName ?? '').trim();
+  const place = placeOf(location, region);
   const elements = Array.isArray(location.weatherElement) ? location.weatherElement : [];
   const elementValue = (name) => elements.find((item) => item.elementName === name)?.elementValue;
   const timestamp = isoTime(location.time ?? location.obsTime, fallbackTime);
@@ -53,11 +64,13 @@ function locationReadings(location, fallbackTime) {
   const readings = [];
 
   if (temperature !== null) {
-    readings.push({ device, metric: 'temperature', value: temperature, unit: 'C', timestamp });
+    readings.push({ device, region, station: place, metric: 'temperature', value: temperature, unit: 'C', timestamp });
   }
   if (humidity !== null) {
     readings.push({
       device,
+      region,
+      station: place,
       metric: 'humidity',
       value: humidity <= 1 ? Math.round(humidity * 1000) / 10 : humidity,
       unit: '%',
@@ -67,15 +80,20 @@ function locationReadings(location, fallbackTime) {
   return readings;
 }
 
-export function cwaUrl(key, stationIds = '') {
+export function cwaUrl(key, stationIds = '', county = '') {
   const url = new URL(DATASET_URL);
   url.searchParams.set('Authorization', key);
   url.searchParams.set('format', 'JSON');
   if (stationIds) url.searchParams.set('StationId', stationIds);
+  if (county) url.searchParams.set('CountyName', county);
   return url.toString();
 }
 
-export function toReadings(payload, { limit = 24, now = new Date() } = {}) {
+function countyOf(station) {
+  return String(station?.GeoInfo?.CountyName ?? station?.CountyName ?? station?.CITY ?? '').trim();
+}
+
+export function toReadings(payload, { limit = 24, now = new Date(), region = '' } = {}) {
   if (payload?.success === false || payload?.success === 'false') {
     throw new Error(payload?.result?.message ?? 'CWA API 回傳失敗');
   }
@@ -87,10 +105,11 @@ export function toReadings(payload, { limit = 24, now = new Date() } = {}) {
   const readings = [];
   for (const station of stations) {
     if (readings.length >= limit) break;
+    if (region && countyOf(station) !== region) continue;
     const converted = Array.isArray(station?.weatherElement)
       ? locationReadings(station, fallback)
       : stationReadings(station, fallback);
-    readings.push(...converted);
+    readings.push(...(region ? converted.map((reading) => ({ ...reading, region })) : converted));
   }
   return readings.slice(0, limit);
 }
