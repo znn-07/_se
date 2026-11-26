@@ -41,6 +41,8 @@ const state = {
   tableCounty: '',
   tablePage: 1,
   autoSelectStation: true,
+  series: [],
+  seriesDevice: '',
   live: true,
   busy: false,
   clockTimer: null,
@@ -473,10 +475,13 @@ function drawChart() {
   }
 
   const scoped = scopedStats();
-  const pointsFor = (device, metric) => (state.data?.recent ?? [])
-    .filter((item) => item.device === device && item.metric === metric && Number.isFinite(Date.parse(item.timestamp)))
-    .slice(0, 40)
-    .reverse();
+  const pointsFor = (device, metric) => {
+    const source = state.seriesDevice === device ? state.series : (state.data?.recent ?? []);
+    return source
+      .filter((item) => item.device === device && item.metric === metric && Number.isFinite(Date.parse(item.timestamp)))
+      .slice(0, 40)
+      .reverse();
+  };
   const alertFor = (item) => {
     if (!item) return null;
     const key = keyOf(item.device, item.metric);
@@ -665,6 +670,7 @@ function render() {
 
   renderKpis(data);
   renderStationOptions();
+  if (selectedDevice() !== state.seriesDevice) loadSeries();
   renderMetricButtons();
 
   const scoped = scopedStats();
@@ -698,6 +704,27 @@ async function refresh(announce = false) {
   } finally {
     state.busy = false;
   }
+}
+
+async function loadSeries() {
+  const device = selectedDevice();
+  state.seriesDevice = device;
+  if (!device) {
+    state.series = [];
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/readings?device=${encodeURIComponent(device)}&limit=40`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    if (!body.ok) throw new Error(body.message || '序列讀取失敗');
+    if (state.seriesDevice !== device) return;
+    state.series = body.readings ?? [];
+  } catch (error) {
+    state.series = [];
+  }
+  render();
 }
 
 async function post(path, options = {}) {
@@ -744,6 +771,8 @@ async function reset() {
     state.data = null;
     state.metric = ALL_METRIC;
     state.tablePage = 1;
+    state.series = [];
+    state.seriesDevice = '';
     $('stationSelect').value = '';
     await refresh();
     showToast('已清空所有紀錄');

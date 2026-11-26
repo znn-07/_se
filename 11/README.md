@@ -71,7 +71,7 @@ flowchart LR
 資料流：
 
 1. 裝置送出量測到 `POST /api/telemetry`；Worker 驗證欄位、補上 `received_at` 後寫入 D1。
-2. 瀏覽器每 3 秒呼叫 `GET /api/summary`，一次取得統計、告警、規則、最近 60 筆與總數。
+2. 瀏覽器每 3 秒呼叫 `GET /api/summary`，一次取得統計、告警、規則、最近 60 筆與總數；切換測站時另呼叫 `GET /api/readings?device=<device>&limit=40` 取得該測站自己的序列，避免低頻 CWA 測站被全域最近 60 筆擠出波形。
 3. `src/rules.js` 比對最新值與 Threshold；異常項目顯示在告警控制台。
 4. 告警狀態由 `src/notify.js` 寫回 `alert_state`；狀態改變時才發出 Webhook。
 5. Worker Cron 每 10 分鐘呼叫 `scheduled()`，先以同一台 `sensor-a2` 寫入四項模擬讀數，再匯入氣象署觀測；即使沒設定 `CWA_API_KEY`，四條模擬波形仍會持續累積。
