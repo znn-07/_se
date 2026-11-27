@@ -187,7 +187,7 @@ npm run deploy             # build + wrangler deploy
 
 ## 二、作業
 
-以下作業依期中檢驗表整理；另以本資料夾的 `index.html`、`styles.css`、`app.js` 做成作業統整網站，尚未部署，原始碼見 https://github.com/znn-07/_se/tree/main/final_profile 。完整檔案與截圖另見 `11/`，此處僅列成果摘要。
+以下作業依期中檢驗表整理；另以本資料夾的 `index.html`、`styles.css`、`app.js` 做成作業統整網站，尚未部署。
 
 | 週次 | 作業 | 重點 |
 | --- | --- | --- |
