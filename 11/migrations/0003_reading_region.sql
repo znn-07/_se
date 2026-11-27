@@ -1,1 +1,0 @@
-ALTER TABLE readings ADD COLUMN region TEXT NOT NULL DEFAULT '';

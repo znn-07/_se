@@ -1,6 +1,0 @@
-.wrangler/
-node_modules/
-.dev.vars
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
